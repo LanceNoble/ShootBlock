@@ -8,101 +8,73 @@ int main() {
 	int res;
 	WSADATA wsaData;
 	if (res = WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
-		printf("WSAStartup fail: %d\n", res);
-		return 1;
+		printf("WSAStartup fail\n");
+		return res;
 	}
-
-	struct addrinfo* resAddrTCP = NULL;
+	struct addrinfo* addr = NULL;
 	struct addrinfo hintsTCP;
 	ZeroMemory(&hintsTCP, sizeof(hintsTCP));
 	hintsTCP.ai_family = AF_INET;
 	hintsTCP.ai_socktype = SOCK_STREAM;
 	hintsTCP.ai_protocol = IPPROTO_TCP;
-	res = getaddrinfo(NULL, "30000", &hintsTCP, &resAddrTCP);
-	if (res != 0) {
-		printf("getaddrinfo TCP fail: %d\n", res);
+	if (res = getaddrinfo(NULL, "30000", &hintsTCP, &addr) != 0) {
+		printf("getaddrinfo fail\n");
 		WSACleanup();
-		return 1;
+		return res;
 	}
-	struct addrinfo* resAddrUDP = NULL;
-	struct addrinfo hintsUDP;
-	ZeroMemory(&hintsUDP, sizeof(hintsUDP));
-	hintsUDP.ai_family = AF_INET;
-	hintsUDP.ai_socktype = SOCK_DGRAM;
-	hintsUDP.ai_protocol = IPPROTO_UDP;
-	res = getaddrinfo(NULL, "30000", &hintsUDP, &resAddrUDP);
-	if (res != 0) {
-		printf("getaddrinfo UDP fail: %d\n", res);
+	SOCKET host = socket(addr->ai_family, addr->ai_socktype, addr->ai_protocol);
+	if (host == INVALID_SOCKET) {
+		printf("socket fail\n");
+		freeaddrinfo(addr);
 		WSACleanup();
-		return 1;
+		return WSAGetLastError();
 	}
-
-	SOCKET sockTCP = socket(resAddrTCP->ai_family, resAddrTCP->ai_socktype, resAddrTCP->ai_protocol);
-	if (sockTCP == INVALID_SOCKET) {
-		printf("socket TCP fail: %ld\n", WSAGetLastError());
-		freeaddrinfo(resAddrTCP);
+	u_long mode = 1;
+	if (ioctlsocket(host, FIONBIO, &mode) == SOCKET_ERROR) {
+		printf("ioctlsocket fail\n");
+		closesocket(host);
+		freeaddrinfo(addr);
 		WSACleanup();
-		return 1;
+		return WSAGetLastError();
 	}
-	SOCKET sockUDP = socket(resAddrUDP->ai_family, resAddrUDP->ai_socktype, resAddrUDP->ai_protocol);
-	if (sockUDP == INVALID_SOCKET) {
-		printf("socket UDP fail: %ld\n", WSAGetLastError());
-		freeaddrinfo(resAddrUDP);
+	if (bind(host, addr->ai_addr, addr->ai_addrlen) == SOCKET_ERROR) {
+		printf("bind fail\n");
+		freeaddrinfo(addr);
+		closesocket(host);
 		WSACleanup();
-		return 1;
+		return WSAGetLastError();
 	}
-
-	res = bind(sockTCP, resAddrTCP->ai_addr, resAddrTCP->ai_addrlen);
-	if (res == SOCKET_ERROR) {
-		printf("bind TCP fail: %d\n", WSAGetLastError());
-		freeaddrinfo(resAddrTCP);
-		closesocket(sockTCP);
-		closesocket(sockUDP);
+	freeaddrinfo(addr);
+	if (listen(host, 4) == SOCKET_ERROR) {
+		printf("listen fail");
+		closesocket(host);
 		WSACleanup();
-		return 1;
-	}
-	freeaddrinfo(resAddrTCP);
-	res = bind(sockUDP, resAddrUDP->ai_addr, resAddrUDP->ai_addrlen);
-	if (res == SOCKET_ERROR) {
-		printf("bind UDP fail: %d\n", WSAGetLastError());
-		freeaddrinfo(resAddrUDP);
-		closesocket(sockUDP);
-		closesocket(sockTCP);
-		WSACleanup();
-		return 1;
+		return WSAGetLastError();
 	}
 
-	if (listen(sockTCP, 4) == SOCKET_ERROR) {
-		printf("listen fail: %ld\n", WSAGetLastError());
-		closesocket(sockTCP);
-		closesocket(sockUDP);
-		freeaddrinfo(resAddrUDP);
-		WSACleanup();
-		return 1;
-	}
-
-	int i = 0;
-	SOCKET clients[4];
-	struct sockaddr clientAddrs[4];
-	while (i < 4) {
-		clients[i] = accept(sockTCP, &clientAddrs[i], NULL);
-		if (clients[i] == INVALID_SOCKET) {
-			printf("accept TCP fail: %d\n", WSAGetLastError());
-			closesocket(sockTCP);
-			closesocket(sockUDP);
-			freeaddrinfo(resAddrUDP);
-			WSACleanup();
-			return 1;
+	int iReads = 0;
+	int iWrites = 0;
+	SOCKET reads[5];
+	SOCKET writes[5];
+	reads[0] = host;
+	writes[0] = host;
+	fd_set readfds = { .fd_count = 5,.fd_array = reads };
+	fd_set writefds = { .fd_count = 5,.fd_array = writes };
+	const struct timeval timeout = { .tv_sec = 60, .tv_usec = 60000000 };
+	while (iReads < 5) {
+		SOCKET sock;
+		select(0, &readfds, &writefds, NULL, &timeout);
+		if (sock = accept(host, NULL, NULL) != INVALID_SOCKET && FD_ISSET(host, &readfds) && iReads < 5) {
+			reads[iReads] = sock;
+			iReads++;
 		}
-		i++;
+		printf("connected sockets: %i\n", iReads);
 	}
-
-	char recvbuf[]
-
-
-	freeaddrinfo(resAddrUDP);
-	closesocket(sockUDP);
-	closesocket(sockTCP);
+	for (int i = 0; i < 5; i ++) {
+		shutdown(reads[i], SD_SEND);
+		closesocket(reads[i]);
+	}
+	closesocket(host); 
 	WSACleanup();
 	return 0;
 }
