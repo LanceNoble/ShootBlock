@@ -52,7 +52,6 @@ int main() {
 		return WSAGetLastError();
 	}
 
-	int max = 5;
 	fd_set actives;
 	FD_ZERO(&actives);
 	fd_set reads;
@@ -60,7 +59,7 @@ int main() {
 	const struct timeval timeout = { .tv_sec = 60, .tv_usec = 60000000 };
 	while (1) {
 		SOCKET newSock = accept(host, NULL, NULL);
-		if (newSock != INVALID_SOCKET && actives.fd_count < 5)
+		if (newSock != INVALID_SOCKET && actives.fd_count < 5) 
 			FD_SET(newSock, &actives);
 
 		FD_ZERO(&reads);
@@ -73,7 +72,13 @@ int main() {
 
 		for (int i = 0; i < reads.fd_count; i++) {
 			char buf[64];
-			if (recv(reads.fd_array[i], buf, 64, 0) == 0)
+			int bytes = recv(reads.fd_array[i], buf, 64, 0);
+			if (bytes == SOCKET_ERROR && WSAGetLastError() == 10054) {
+				shutdown(reads.fd_array[i], SD_SEND);
+				closesocket(reads.fd_array[i]);
+				FD_CLR(reads.fd_array[i], &actives);
+			}
+			if (bytes == 0)
 				FD_CLR(reads.fd_array[i], &actives);
 		}
 
