@@ -6,7 +6,6 @@
 
 int main() {
 	int pipe[6];
-	int res;
 	u_long mode = 1;
 	WSADATA wsaData;
 	SOCKET host;
@@ -15,7 +14,7 @@ int main() {
 	ZeroMemory(&hintsTCP, sizeof(hintsTCP));
 	hintsTCP.ai_family = AF_INET;
 	hintsTCP.ai_socktype = SOCK_STREAM;
-	hintsTCP.ai_protocol = IPPROTO_UDP;
+	hintsTCP.ai_protocol = IPPROTO_TCP;
 
 	pipe[0] = WSAStartup(MAKEWORD(2, 2), &wsaData);
 	pipe[1] = getaddrinfo(NULL, "30000", &hintsTCP, &addr);
@@ -38,10 +37,10 @@ int main() {
 
 	char clientCount[32] = "0";
 	fd_set actives;
-	FD_ZERO(&actives);
 	fd_set reads;
+	FD_ZERO(&actives);
 	const struct timeval timeout = { .tv_sec = 0, .tv_usec = 0 * 1000000 };
-	while (1) {
+	while (!(GetAsyncKeyState(VK_ESCAPE) & 0x01)) {
 		if (actives.fd_count < 4) {
 			SOCKET newSock = accept(host, NULL, NULL);
 			if (ioctlsocket(newSock, FIONBIO, &mode) != SOCKET_ERROR) {
