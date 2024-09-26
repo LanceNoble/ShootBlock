@@ -1,3 +1,5 @@
+
+
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <stdio.h>
@@ -54,35 +56,46 @@ int main() {
 
 	fd_set actives;
 	FD_ZERO(&actives);
+	FD_SET(host, &actives);
 	fd_set reads;
-	fd_set writes;
-	const struct timeval timeout = { .tv_sec = 60, .tv_usec = 60000000 };
+	const struct timeval timeout = { .tv_sec = 0, .tv_usec = 0 * 1000000 };
 	while (1) {
+		
 		SOCKET newSock = accept(host, NULL, NULL);
-		if (newSock != INVALID_SOCKET && actives.fd_count < 5) 
+		if (newSock != INVALID_SOCKET && actives.fd_count < 5) {
 			FD_SET(newSock, &actives);
+			
+			for (int i = 0; i < actives.fd_count; i++) {
+				send(actives.fd_array[i], "j", 1, 0);
+			}
+			
+			
+		}
 
 		FD_ZERO(&reads);
-		FD_ZERO(&writes);
-		for (int i = 0; i < actives.fd_count; i++) {
+		for (int i = 0; i < actives.fd_count; i++)
 			FD_SET(actives.fd_array[i], &reads);
-			FD_SET(actives.fd_array[i], &writes);
-		}
-		select(0, &reads, &writes, NULL, &timeout);
-
+		
+		select(0, &reads, NULL, NULL, &timeout);
 		for (int i = 0; i < reads.fd_count; i++) {
+			if (reads.fd_array[i] == host)
+				continue;
 			char buf[64];
 			int bytes = recv(reads.fd_array[i], buf, 64, 0);
-			if (bytes == SOCKET_ERROR && WSAGetLastError() == 10054) {
+			if (bytes == SOCKET_ERROR && WSAGetLastError() == 10054 || bytes == 0) {		
 				shutdown(reads.fd_array[i], SD_SEND);
 				closesocket(reads.fd_array[i]);
 				FD_CLR(reads.fd_array[i], &actives);
 			}
-			if (bytes == 0)
-				FD_CLR(reads.fd_array[i], &actives);
+			
+			if (bytes == 1) {
+				for (int i = 0; i < actives.fd_count; i++)
+					send(actives.fd_array[i], buf, 1, 0);
+			}
+			
+			
 		}
-
-		printf("connected sockets: %i\n", actives.fd_count);
+		printf("connected sockets: %i\n", actives.fd_count - 1);
 	}
 	for (int i = 0; i < 5; i ++) {
 		//shutdown(reads[i], SD_SEND);
