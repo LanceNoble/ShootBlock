@@ -52,27 +52,36 @@ int main() {
 		return WSAGetLastError();
 	}
 
-	int iReads = 0;
-	int iWrites = 0;
-	SOCKET reads[5];
-	SOCKET writes[5];
-	reads[0] = host;
-	writes[0] = host;
-	fd_set readfds = { .fd_count = 5,.fd_array = reads };
-	fd_set writefds = { .fd_count = 5,.fd_array = writes };
+	int max = 5;
+	fd_set actives;
+	FD_ZERO(&actives);
+	fd_set reads;
+	fd_set writes;
 	const struct timeval timeout = { .tv_sec = 60, .tv_usec = 60000000 };
-	while (iReads < 5) {
-		SOCKET sock;
-		select(0, &readfds, &writefds, NULL, &timeout);
-		if (sock = accept(host, NULL, NULL) != INVALID_SOCKET && FD_ISSET(host, &readfds) && iReads < 5) {
-			reads[iReads] = sock;
-			iReads++;
+	while (1) {
+		SOCKET newSock = accept(host, NULL, NULL);
+		if (newSock != INVALID_SOCKET && actives.fd_count < 5)
+			FD_SET(newSock, &actives);
+
+		FD_ZERO(&reads);
+		FD_ZERO(&writes);
+		for (int i = 0; i < actives.fd_count; i++) {
+			FD_SET(actives.fd_array[i], &reads);
+			FD_SET(actives.fd_array[i], &writes);
 		}
-		printf("connected sockets: %i\n", iReads);
+		select(0, &reads, &writes, NULL, &timeout);
+
+		for (int i = 0; i < reads.fd_count; i++) {
+			char buf[64];
+			if (recv(reads.fd_array[i], buf, 64, 0) == 0)
+				FD_CLR(reads.fd_array[i], &actives);
+		}
+
+		printf("connected sockets: %i\n", actives.fd_count);
 	}
 	for (int i = 0; i < 5; i ++) {
-		shutdown(reads[i], SD_SEND);
-		closesocket(reads[i]);
+		//shutdown(reads[i], SD_SEND);
+		//closesocket(reads[i]);
 	}
 	closesocket(host); 
 	WSACleanup();
