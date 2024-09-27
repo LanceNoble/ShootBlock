@@ -28,73 +28,88 @@ int main() {
 	bind(host, addr->ai_addr, addr->ai_addrlen);
 	pipe[4] = WSAGetLastError();
 
-	listen(host, 4);
+	listen(host, SOMAXCONN);
 	pipe[5] = WSAGetLastError();
 
 	for (int i = 0; i < 6; i++) 
 		if (pipe[i] != 0) 
 			goto end;
 
-	char clientCount[32] = "0";
+	char recvBuf[8];
+	int numCli = 0;
 	fd_set actives;
 	fd_set reads;
 	FD_ZERO(&actives);
 	const struct timeval timeout = { .tv_sec = 0, .tv_usec = 0 * 1000000 };
+	SOCKET waiter;
 	while (!(GetAsyncKeyState(VK_ESCAPE) & 0x01)) {
-		if (actives.fd_count < 4) {
-			SOCKET newSock = accept(host, NULL, NULL);
-			if (ioctlsocket(newSock, FIONBIO, &mode) != SOCKET_ERROR) {
-				FD_SET(newSock, &actives);
-				for (int i = 0; i < actives.fd_count; i++) {
-					if (actives.fd_array[i] != host) {
-						clientCount[0]++;
-						if (send(actives.fd_array[i], clientCount, 32, 0) == SOCKET_ERROR) {
-							printf("%i\n", WSAGetLastError());
-						}
-					}
-				}
-			}
+		waiter = accept(host, NULL, NULL);
+		if (ioctlsocket(waiter, FIONBIO, &mode) == SOCKET_ERROR)
+			goto activityCheck;
+		/*
+		if (actives.fd_count == 4) {
+			shutdown(waiter, SD_SEND);
+			closesocket(waiter);
+			goto activityCheck;
 		}
+		*/
+		
+		FD_SET(waiter, &actives);
 
+
+	activityCheck:
 		if (actives.fd_count == 0)
 			continue;
+		
 		FD_ZERO(&reads);
 		for (int i = 0; i < actives.fd_count; i++)
 			FD_SET(actives.fd_array[i], &reads);
 		
 		select(0, &reads, NULL, NULL, &timeout);
 		for (int i = 0; i < reads.fd_count; i++) {
-			if (reads.fd_array[i] == host)
-				continue;
-
-			char buf[64];
-			int bytes = recv(reads.fd_array[i], buf, 64, 0);
+			int bytes = recv(reads.fd_array[i], recvBuf, 8, 0);
 			if (bytes == SOCKET_ERROR && WSAGetLastError() == 10054 || bytes == 0) {	
 				FD_CLR(reads.fd_array[i], &actives);
 				shutdown(reads.fd_array[i], SD_SEND);
 				closesocket(reads.fd_array[i]);
-				for (int i = 0; i < actives.fd_count; i++) {
-					if (actives.fd_array[i] != host) {
-						clientCount[0]--;
-						send(actives.fd_array[i], clientCount, 32, 0);
-					}
+				printf("connected sockets: %i\n", ++numCli);
+			}
+			if (bytes > 0 && recvBuf[0] == '0') {
+				if (send(reads.fd_array[i], "0", 1, 0) == SOCKET_ERROR) {
+					printf("%i\n", WSAGetLastError());
+				}
+				else {
+					printf("connected sockets: %i\n", ++numCli);
+				}
+			}
+			if (bytes > 0 && recvBuf[0] == '1') {
+				if (send(reads.fd_array[i], "1", 1, 0) == SOCKET_ERROR) {
+					printf("%i\n", WSAGetLastError());
+				}
+				else {
+					printf("connected sockets: %i\n", --numCli);
 				}
 			}
 		}
-		printf("connected sockets: %i\n", actives.fd_count - 1);
-	}
 
+		/*
+		for (int i = 0; i < actives.fd_count; i++) {
+			clientCount[0] = actives.fd_count;
+			if (send(actives.fd_array[i], clientCount, 1, 0) == SOCKET_ERROR) {
+				printf("%i\n", WSAGetLastError());
+			}
+		}
+		*/
+	}
 	for (int i = 0; i < actives.fd_count; i ++) {
 		shutdown(actives.fd_array[i], SD_SEND);
 		closesocket(actives.fd_array[i]);
 	}
 	FD_ZERO(&actives);
 	FD_ZERO(&reads);
-
-	end:
-		freeaddrinfo(addr);
-		closesocket(host); 
-		WSACleanup();
-
+end:
+	freeaddrinfo(addr);
+	closesocket(host);
+	WSACleanup();
 	return 0;
 }
