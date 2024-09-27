@@ -4,12 +4,12 @@
 
 #pragma comment(lib, "Ws2_32.lib")
 
+u_long mode = 1;
 SOCKET hostTCP;
 SOCKET hostUDP;
 struct addrinfo* addrTCP;
 struct addrinfo* addrUDP;
 void hsock(int type, int proto, struct addrinfo* addr, SOCKET* sock, int pipe[5]) {
-	u_long mode = 1;
 	struct addrinfo hints;
 	ZeroMemory(&hints, sizeof(hints));
 	hints.ai_family = AF_INET;
@@ -34,11 +34,9 @@ int main() {
 	for (int i = 0; i < 4; i++) if (pipeTCP[i] != 0 || pipeUDP[i] != 0) goto end;
 	listen(hostTCP, SOMAXCONN);
 	
-
-	
-	u_long mode = 1;
 	char recvBuf[8];
 	int numCli = 0;
+	int maxNumCli = 3;
 	fd_set actives;
 	fd_set reads;
 	FD_ZERO(&actives);
