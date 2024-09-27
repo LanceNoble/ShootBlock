@@ -4,37 +4,39 @@
 
 #pragma comment(lib, "Ws2_32.lib")
 
-int main() {
-	int pipe[6];
+SOCKET hostTCP;
+SOCKET hostUDP;
+struct addrinfo* addrTCP;
+struct addrinfo* addrUDP;
+void hsock(int type, int proto, struct addrinfo* addr, SOCKET* sock, int pipe[5]) {
 	u_long mode = 1;
-	WSADATA wsaData;
-	SOCKET host;
-	struct addrinfo* addr;
-	struct addrinfo hintsTCP;
-	ZeroMemory(&hintsTCP, sizeof(hintsTCP));
-	hintsTCP.ai_family = AF_INET;
-	hintsTCP.ai_socktype = SOCK_STREAM;
-	hintsTCP.ai_protocol = IPPROTO_TCP;
-
-	pipe[0] = WSAStartup(MAKEWORD(2, 2), &wsaData);
-	pipe[1] = getaddrinfo(NULL, "30000", &hintsTCP, &addr);
-
-	host = socket(addr->ai_family, addr->ai_socktype, addr->ai_protocol);
+	struct addrinfo hints;
+	ZeroMemory(&hints, sizeof(hints));
+	hints.ai_family = AF_INET;
+	hints.ai_socktype = type;
+	hints.ai_protocol = proto;
+	hints.ai_flags = AI_PASSIVE;
+	pipe[0] = getaddrinfo(NULL, "3490", &hints, &addr);
+	sock = socket(addr->ai_family, addr->ai_socktype, addr->ai_protocol);
+	pipe[1] = WSAGetLastError();
+	ioctlsocket(sock, FIONBIO, &mode);
 	pipe[2] = WSAGetLastError();
-
-	ioctlsocket(host, FIONBIO, &mode);
+	bind(sock, addr->ai_addr, addr->ai_addrlen);
 	pipe[3] = WSAGetLastError();
+}
+int main() {
+	int pipeTCP[4];
+	int pipeUDP[4];
+	WSADATA wsaData;
+	if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) goto end;
+	hsock(SOCK_STREAM, IPPROTO_TCP, addrTCP, hostTCP, pipeTCP);
+	hsock(SOCK_DGRAM, IPPROTO_UDP, addrUDP, hostUDP, pipeUDP);
+	for (int i = 0; i < 4; i++) if (pipeTCP[i] != 0 || pipeUDP[i] != 0) goto end;
+	listen(hostTCP, SOMAXCONN);
+	
 
-	bind(host, addr->ai_addr, addr->ai_addrlen);
-	pipe[4] = WSAGetLastError();
-
-	listen(host, SOMAXCONN);
-	pipe[5] = WSAGetLastError();
-
-	for (int i = 0; i < 6; i++) 
-		if (pipe[i] != 0) 
-			goto end;
-
+	
+	u_long mode = 1;
 	char recvBuf[8];
 	int numCli = 0;
 	fd_set actives;
@@ -43,7 +45,7 @@ int main() {
 	const struct timeval timeout = { .tv_sec = 0, .tv_usec = 0 * 1000000 };
 	SOCKET waiter;
 	while (!(GetAsyncKeyState(VK_ESCAPE) & 0x01)) {
-		waiter = accept(host, NULL, NULL);
+		waiter = accept(hostTCP, NULL, NULL);
 		if (ioctlsocket(waiter, FIONBIO, &mode) == SOCKET_ERROR)
 			goto activityCheck;
 		/*
@@ -68,13 +70,14 @@ int main() {
 		select(0, &reads, NULL, NULL, &timeout);
 		for (int i = 0; i < reads.fd_count; i++) {
 			int bytes = recv(reads.fd_array[i], recvBuf, 8, 0);
-			if (bytes == SOCKET_ERROR && WSAGetLastError() == 10054 || bytes == 0) {	
+			// Account for people who abort program
+			if (bytes == SOCKET_ERROR && WSAGetLastError() == 10054) {	
 				FD_CLR(reads.fd_array[i], &actives);
 				shutdown(reads.fd_array[i], SD_SEND);
 				closesocket(reads.fd_array[i]);
-				printf("connected sockets: %i\n", ++numCli);
+				printf("connected sockets: %i\n", --numCli);
 			}
-			if (bytes > 0 && recvBuf[0] == '0') {
+			if (bytes == 1 && recvBuf[0] == '0') {
 				if (send(reads.fd_array[i], "0", 1, 0) == SOCKET_ERROR) {
 					printf("%i\n", WSAGetLastError());
 				}
@@ -82,7 +85,7 @@ int main() {
 					printf("connected sockets: %i\n", ++numCli);
 				}
 			}
-			if (bytes > 0 && recvBuf[0] == '1') {
+			if (bytes == 1 && recvBuf[0] == '1') {
 				if (send(reads.fd_array[i], "1", 1, 0) == SOCKET_ERROR) {
 					printf("%i\n", WSAGetLastError());
 				}
@@ -91,6 +94,7 @@ int main() {
 				}
 			}
 		}
+
 
 		/*
 		for (int i = 0; i < actives.fd_count; i++) {
@@ -108,8 +112,8 @@ int main() {
 	FD_ZERO(&actives);
 	FD_ZERO(&reads);
 end:
-	freeaddrinfo(addr);
-	closesocket(host);
+	freeaddrinfo(addrTCP);
+	closesocket(hostTCP);
 	WSACleanup();
 	return 0;
 }
