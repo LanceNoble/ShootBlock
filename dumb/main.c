@@ -1,62 +1,71 @@
-// 10/01/2024
-// This program is a server allowing a maximum of 3 client connections
-// Its sole purpose is to prompt/help each client sync their data with all other clients AND the server
-// The client does the actual syncing
+// 10/08/2024
+// This program is the server portion of my attempt at writing netcode
 // 
-// Client data sync occurs when the client signals the server that something happened on their end
-// Server must respond to this signal by relaying it to the rest of the clients
+// Successful Data Syncs:
+// - List of connected players
+// - Player positions
+// - 
 // 
-// Server data sync occurs when the server signals the client that something happened on their end
-// Client must respond to this signal by changing something on their end
-// 
-// Data it helps sync so far:
-// - List of connected clients (client data)
-// - TODO: Player positions
+// TODO:
+// 1. 
+
 #include <winsock2.h>
 #include <ws2tcpip.h>
-#include <stdio.h>
 
 #pragma comment(lib, "Ws2_32.lib") 
 
 #define MAX_PLAYERS 3
 #define VACANT_PLAYER 0
 
-// Represents a server-wide or player-specific msg:
-// - type: subject of msg describing an event
-//   - 0: player join request success (player-specific)
-//	 - 1: player joined the server (server-wide)
-//   - 2: player left the server (server-wide)
-// - target: id of player associated with event
-// - id1 + id2: ids of other players (only used with msg type 0)
-union tcp_msg {
-	struct {
-		unsigned char type     : 2; 
-		unsigned char target   : 2;
-		unsigned char ids	   : 4;
-	};
-	char raw[1];
+struct player {
+	SOCKET waiter;
+	unsigned int id;
+	signed int xPos;
+	signed int yPos;
 };
 
-union udp_msg {
+// How the client and server will MOSTLY format their messages when talking to each other
+// The netcode is written in a way where the client and server won't always use this format:
+// 1. a client's connect() also means Player Join
+// 2. a client's or server's closesocket() also means Player Leave
+// 
+// The union lets us represent the message in 3 forms:
+// 1. Struct Form makes it easier to format the message
+// 2. Int Form makes it easier to use hton and ntoh functions
+// 3. Char Array Form makes it easier to send and recv
+//
+// Not all message types will utilize all bit fields
+union msg {
 	struct {
+		// 1 - Player Join
+		// 2 - Player Leave
+		// 3 - Player Move
+		unsigned int type : 2;
+
+		// ID of player who sent the message
 		unsigned int id : 2;
-		signed   int x  : 15;
-		signed   int y  : 15;
+
+		// Position of player who sent the message
+		signed int xPos : 14;
+		signed int yPos : 14;
 	};
 	int whole;
 	char raw[4];
 };
 
-struct player {
-	SOCKET waiter;
-	unsigned int id;
-	signed int x;
-	signed int y;
-	struct sockaddr udpAddr;
-};
+// Create a message ready for send or recv
+union msg formatmsg(unsigned int type, unsigned int id, signed int xPos, signed int yPos) {
+	union msg msg;
+	msg.type = type;
+	msg.id = id;
+	msg.xPos = xPos;
+	msg.yPos = yPos;
+	return msg;
+}
 
-int host(int type, int proto, SOCKET* shost) {
-	int res;
+// Create a socket ready to listen for and accept connections
+void inithost(int type, int proto, SOCKET* shost) {
+	int status;
 	u_long mode = 1;
 	struct addrinfo* addr;
 	struct addrinfo hints;
@@ -65,181 +74,165 @@ int host(int type, int proto, SOCKET* shost) {
 	hints.ai_socktype = type;
 	hints.ai_protocol = proto;
 	hints.ai_flags = AI_PASSIVE;
-	res = getaddrinfo(NULL, "3490", &hints, &addr);
-	if (res != 0) 
-		return res;
+	status = getaddrinfo(NULL, "3490", &hints, &addr);
+	if (status != 0) {
+		WSACleanup();
+		exit(status);
+	}
 	*shost = socket(addr->ai_family, addr->ai_socktype, addr->ai_protocol);
 	if (*shost == INVALID_SOCKET) {
-		freeaddrinfo(addr); 
-		return WSAGetLastError(); 
+		status = WSAGetLastError();
+		freeaddrinfo(addr);
+		WSACleanup();
+		exit(status); 
 	}
 	if (ioctlsocket(*shost, FIONBIO, &mode) == SOCKET_ERROR) {
+		status = WSAGetLastError();
+		closesocket(*shost);
 		freeaddrinfo(addr); 
-		return WSAGetLastError(); 
+		WSACleanup();
+		exit(status);
 	}
 	if (bind(*shost, addr->ai_addr, addr->ai_addrlen) == SOCKET_ERROR) {
-		freeaddrinfo(addr); 
-		return WSAGetLastError(); 
+		status = WSAGetLastError();
+		closesocket(*shost);
+		freeaddrinfo(addr);
+		WSACleanup();
+		exit(status);
 	}
 	freeaddrinfo(addr);
-	return 0;
 }
 
 int main() {
-	int status;
-
 	// Initialize WSA
 	WSADATA wsaData;
-	status = WSAStartup(MAKEWORD(2, 2), &wsaData);
-	if (status != 0) {
-		printf("WSAStartup Fail");
+	int status = WSAStartup(MAKEWORD(2, 2), &wsaData);
+	if (status != 0)
 		return status;
-	}
 
 	// Initialize host sockets
-	SOCKET hostTCP;
-	status = host(SOCK_STREAM, IPPROTO_TCP, &hostTCP);
-	if (status != 0)
-		return status;
-
-	if (listen(hostTCP, SOMAXCONN) == SOCKET_ERROR)
-		return WSAGetLastError();
-
-	SOCKET hostUDP; 
-	status = host(SOCK_DGRAM, IPPROTO_UDP, &hostUDP);
-	if (status != 0)
-		return status;
-
+	SOCKET host;
+	inithost(SOCK_STREAM, IPPROTO_TCP, &host);
+	if (listen(host, SOMAXCONN) == SOCKET_ERROR) {
+		status = WSAGetLastError();
+		closesocket(host);
+		WSACleanup();
+		exit(status);
+	}
+	
 	// Initialize player list
+	// Zeroing the array is important because a zero'd player is used to represent an empty spot in the server
 	struct player players[MAX_PLAYERS];
-	ZeroMemory(players, sizeof(*players) * MAX_PLAYERS);
+	ZeroMemory(players, sizeof(players));
 
-	u_long mode = 1;
+	// The Great Server Loop
 	int numPlayers = 0;
-
 	while (!(GetAsyncKeyState(VK_END) & 0x01)) {
-		// Test 3: Player Validation
+
+		// If the server's full, don't even bother accepting new sockets
 		if (numPlayers == MAX_PLAYERS)
-			goto checkup;
+			goto sync;
 
-		SOCKET waiter = accept(hostTCP, NULL, NULL);
+		// If there's no incoming connection requests, skip straight to syncing
+		SOCKET waiter = accept(host, NULL, NULL);
 		if (waiter == INVALID_SOCKET)
-			goto checkup;
+			goto sync;
 
+		// If the incoming player's socket cannot be non-blocking, kick it out
+		u_long mode = 1;
 		if (ioctlsocket(waiter, FIONBIO, &mode) == SOCKET_ERROR) {
 			closesocket(waiter);
-			goto checkup;
+			goto sync;
 		}
 
+		// Look for the first open spot in the server for the new player
 		struct player* next = NULL;
 		for (int i = 0; i < MAX_PLAYERS; i++) {
 			if (players[i].id == VACANT_PLAYER) {
 				next = &(players[i]);
 				next->waiter = waiter;
 				next->id = i + 1;
-				next->x = 0;
-				next->y = 0;
+				next->xPos = 0;
+				next->yPos = 0;
 				break;
 			}
 		}
+		
+		// Final check to see if the server is truly not full
 		if (next == NULL) {
 			closesocket(waiter);
-			goto checkup;
+			goto sync;
 		}
-		// Test 3 End
 
-		union tcp_msg preData;
-		preData.type = 0;
-		preData.target = next->id;
-		preData.ids = 0;
-		for (int i = 0, j = 0; i < MAX_PLAYERS; i++) {
-			if (players[i].id == next->id) continue;
-			preData.ids |= (players[i].id << (2 * j));
-			j++;
+		// The player has now officially joined the server
+		// Signal other players that this player joined 
+		// Also signal the one who just joined so they know which player they are
+		union msg joiner = formatmsg(1, next->id, next->xPos, next->yPos);
+		joiner.whole = htonl(joiner.whole);
+		for (int i = 0; i < MAX_PLAYERS; i++)
+			if (players[i].id != VACANT_PLAYER)
+				send(players[i].waiter, joiner.raw, sizeof(joiner), 0);
+		
+		// Signal only the player who just joined about who already joined the server
+		for (int i = 0; i < MAX_PLAYERS; i++) {
+			if (players[i].id == next->id || 
+				players[i].id == VACANT_PLAYER)
+				continue;
+			union msg existing = formatmsg(1, players[i].id, players[i].xPos, players[i].yPos);
+			existing.whole = htonl(existing.whole);
+			send(next->waiter, existing.raw, sizeof(existing), 0);
 		}
-		send(next->waiter, preData.raw, sizeof(preData), 0);
-
-		union tcp_msg newData;
-		newData.type = 1;
-		newData.target = next->id;
-		newData.ids = 0;
-		for (int i = 0; i < MAX_PLAYERS; i++) 
-			if (players[i].id != next->id && 
-				players[i].id != VACANT_PLAYER) 
-				send(players[i].waiter, newData.raw, sizeof(newData), 0);
 
 		numPlayers++;
-	checkup:
-		// Scan for any players who disconnected
-		for (int i = 0; i < MAX_PLAYERS; i++) {
-			if (players[i].id == VACANT_PLAYER) 
-				continue;
 
-			union tcp_msg oldData;
-			int numBytes = recv(players[i].waiter, oldData.raw, sizeof(oldData), 0);
-
-			// Secondary condition accounts for players who disconnect by force closing
-			if (numBytes == 0 || 
-				(numBytes == SOCKET_ERROR && WSAGetLastError() == 10054)) {
-
-				oldData.type = 2;
-				oldData.target = players[i].id;
-				oldData.ids = 0;
-
-				closesocket(players[i].waiter);
-				ZeroMemory(&(players[i]), sizeof(players[i]));
-
-				for (int i = 0; i < MAX_PLAYERS; i++) 
-					if (players[i].id != VACANT_PLAYER) 
-						send(players[i].waiter, oldData.raw, sizeof(oldData), 0);
-
-				numPlayers--;
-			}
-		}
-
-		union udp_msg idealPos;
-		struct sockaddr udpAddr;
-		int udpAddrLen = sizeof(udpAddr);
-		int numBytes = recvfrom(hostUDP, idealPos.raw, sizeof(idealPos), 0, &udpAddr, &udpAddrLen);
-
-		if (numBytes == SOCKET_ERROR)
-			continue;
-		
-		idealPos.whole = ntohl(idealPos.whole);
-
-		if (players[idealPos.id - 1].udpAddr.sa_family == 0)
-			players[idealPos.id - 1].udpAddr = udpAddr;
-
-		players[idealPos.id - 1].x = idealPos.x;
-		players[idealPos.id - 1].y = idealPos.y;
-
-		/*
-		idealPos.whole = htonl(idealPos.whole);
-		for (int i = 0; i < MAX_PLAYERS; i++)
-			if (players[i].id != VACANT_PLAYER && 
-				players[i].udpAddr.sa_family != 0 &&
-				players[i].id != idealPos.id)
-				sendto(hostUDP, idealPos.raw, sizeof(idealPos), 0, &(players[i].udpAddr), sizeof(players[i].udpAddr));
-		*/
-
+		// We are now done processing connections (if there were any)
+		// Now we process in-game activity
+	sync:
 		for (int i = 0; i < MAX_PLAYERS; i++) {
 			if (players[i].id == VACANT_PLAYER)
 				continue;
-			for (int j = 0; j < MAX_PLAYERS; j++) {
-				if (players[j].id == VACANT_PLAYER || players[j].id == players[i].id)
-					continue;
-				union udp_msg pos;
-				pos.id = players[j].id;
-				pos.x = players[j].x;
-				pos.y = players[j].y;
-				pos.whole = htonl(pos.whole);
-				sendto(hostUDP, pos.raw, sizeof(pos), 0, &(players[i].udpAddr), sizeof(players[i].udpAddr));
+
+			// Attempt to receive an activity signal from the player
+			// Important to zero the union's recv buffer
+			// Zero buffer is used to represent no activity
+			union msg activity;
+			activity.whole = 0;
+			int numBytes = recv(players[i].waiter, activity.raw, sizeof(activity), 0);
+			activity.whole = ntohl(activity.whole);
+
+			// Check if the player disconnected cleanly or force closed the program
+			if (numBytes == 0 ||
+				WSAGetLastError() == 10054) {
+
+				union msg leaver = formatmsg(2, players[i].id, 0, 0);
+				closesocket(players[i].waiter);
+				ZeroMemory(&(players[i]), sizeof(players[i]));
+
+				leaver.whole = htonl(leaver.whole);
+				for (int i = 0; i < MAX_PLAYERS; i++)
+					if (players[i].id != VACANT_PLAYER)
+						send(players[i].waiter, leaver.raw, sizeof(leaver), 0);
+				
+				numPlayers--;
+			}
+			else if (activity.type == 3) {
+				players[activity.id - 1].xPos = activity.xPos;
+				players[activity.id - 1].yPos = activity.yPos;
+
+				union msg mover = formatmsg(3, activity.id, activity.xPos, activity.yPos);
+				mover.whole = htonl(mover.whole);
+				for (int i = 0; i < MAX_PLAYERS; i++)
+					if (players[i].id != VACANT_PLAYER)
+						send(players[i].waiter, mover.raw, sizeof(mover), 0);
 			}
 		}
 	}
-	for (int i = 0; i < MAX_PLAYERS; i++) if (players[i].id != VACANT_PLAYER) closesocket(players[i].waiter);
-	closesocket(hostTCP);
-	closesocket(hostUDP);
+
+	// Cleanup
+	for (int i = 0; i < MAX_PLAYERS; i++)
+		if (players[i].id != VACANT_PLAYER)
+			closesocket(players[i].waiter);
+	closesocket(host);
 	WSACleanup();
 	return 0;
 } 
