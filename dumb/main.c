@@ -64,46 +64,44 @@ union msg formatmsg(unsigned int type, unsigned int id, signed int xPos, signed 
 }
 
 // Create a socket ready to listen for and accept connections
-void inithost(int type, int proto, SOCKET* shost) {
+// addr is a pointer to a pointer because getaddrinfo changes what addr points to
+// Everything is pass-by-value in C, so passing in just a pointer creates a whole new pointer
+// So getaddrinfo would actually operate on that whole new pointer, not your pointer
+// The pointer to a pointer ensures that your pointer can still be referenced
+int inithost(int type, int proto, struct addrinfo** addr, SOCKET* host) {
 	int status;
 	u_long mode = 1;
-	struct addrinfo* addr;
 	struct addrinfo hints;
 	ZeroMemory(&hints, sizeof(hints));
 	hints.ai_family = AF_INET;
 	hints.ai_socktype = type;
 	hints.ai_protocol = proto;
 	hints.ai_flags = AI_PASSIVE;
-	status = getaddrinfo(NULL, "3490", &hints, &addr);
-	if (status != 0) {
-		WSACleanup();
-		exit(status);
-	}
-	*shost = socket(addr->ai_family, addr->ai_socktype, addr->ai_protocol);
-	if (*shost == INVALID_SOCKET) {
+	status = getaddrinfo(NULL, "3490", &hints, addr);
+	if (status != 0)
+		return status;
+	*host = socket((*addr)->ai_family, (*addr)->ai_socktype, (*addr)->ai_protocol);
+	if (*host == INVALID_SOCKET) {
 		status = WSAGetLastError();
-		freeaddrinfo(addr);
-		WSACleanup();
-		exit(status); 
+		return status;
 	}
-	if (ioctlsocket(*shost, FIONBIO, &mode) == SOCKET_ERROR) {
+	if (ioctlsocket(*host, FIONBIO, &mode) == SOCKET_ERROR) {
 		status = WSAGetLastError();
-		closesocket(*shost);
-		freeaddrinfo(addr); 
-		WSACleanup();
-		exit(status);
+		return status;
 	}
-	if (bind(*shost, addr->ai_addr, addr->ai_addrlen) == SOCKET_ERROR) {
+	if (bind(*host, (*addr)->ai_addr, (*addr)->ai_addrlen) == SOCKET_ERROR) {
 		status = WSAGetLastError();
-		closesocket(*shost);
-		freeaddrinfo(addr);
-		WSACleanup();
-		exit(status);
+		return status;
 	}
-	freeaddrinfo(addr);
+	return 0;
 }
 
 int main() {
+	// Initialize player list
+	// Zeroing the array is important because a zero'd player is used to represent an empty spot in the server
+	struct player players[MAX_PLAYERS];
+	ZeroMemory(players, sizeof(players));
+
 	// Initialize WSA
 	WSADATA wsaData;
 	int status = WSAStartup(MAKEWORD(2, 2), &wsaData);
@@ -111,19 +109,16 @@ int main() {
 		return status;
 
 	// Initialize host sockets
+	struct addrinfo* addr;
 	SOCKET host;
-	inithost(SOCK_STREAM, IPPROTO_TCP, &host);
+	status = inithost(SOCK_STREAM, IPPROTO_TCP, &addr, &host);
+	if (status != 0)
+		goto cleanup;
+
 	if (listen(host, SOMAXCONN) == SOCKET_ERROR) {
 		status = WSAGetLastError();
-		closesocket(host);
-		WSACleanup();
-		exit(status);
+		goto cleanup;
 	}
-	
-	// Initialize player list
-	// Zeroing the array is important because a zero'd player is used to represent an empty spot in the server
-	struct player players[MAX_PLAYERS];
-	ZeroMemory(players, sizeof(players));
 
 	// The Great Server Loop
 	int numPlayers = 0;
@@ -228,9 +223,10 @@ int main() {
 		}
 	}
 
+cleanup:
 	// Cleanup
+	freeaddrinfo(addr);
 	for (int i = 0; i < MAX_PLAYERS; i++)
-		if (players[i].id != VACANT_PLAYER)
 			closesocket(players[i].waiter);
 	closesocket(host);
 	WSACleanup();
