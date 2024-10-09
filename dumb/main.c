@@ -25,9 +25,10 @@ struct player {
 };
 
 // How the client and server will MOSTLY format their messages when talking to each other
-// The netcode is written in a way where the client and server won't always use this format:
-// 1. a client's connect() also means Player Join
-// 2. a client's or server's closesocket() also means Player Leave
+// The netcode is written in a way where the client and server won't always use this format
+// For example:
+//	1. a client's connect() also means Player Join
+//	2. a client's or server's closesocket() also means Player Leave
 // 
 // The union lets us represent the message in 3 forms:
 // 1. Struct Form makes it easier to format the message
@@ -66,7 +67,8 @@ union msg formatmsg(unsigned int type, unsigned int id, signed int xPos, signed 
 // Create a socket ready to listen for and accept connections
 // addr is a pointer to a pointer because getaddrinfo changes what addr points to
 // Everything is pass-by-value in C, so passing in just a pointer creates a whole new pointer
-// So getaddrinfo would actually operate on that whole new pointer, not your pointer
+// So getaddrinfo would actually change what that whole new pointer points to
+// It would not change what your pointer points to (it would be completely untouched)
 // The pointer to a pointer ensures that your pointer can still be referenced
 int inithost(int type, int proto, struct addrinfo** addr, SOCKET* host) {
 	int status;
@@ -77,22 +79,19 @@ int inithost(int type, int proto, struct addrinfo** addr, SOCKET* host) {
 	hints.ai_socktype = type;
 	hints.ai_protocol = proto;
 	hints.ai_flags = AI_PASSIVE;
+
+	// I hate this array of error checks
+	// But the error code will get lost if we don't retrieve it immediately from a bad socket operation
 	status = getaddrinfo(NULL, "3490", &hints, addr);
 	if (status != 0)
 		return status;
 	*host = socket((*addr)->ai_family, (*addr)->ai_socktype, (*addr)->ai_protocol);
-	if (*host == INVALID_SOCKET) {
-		status = WSAGetLastError();
-		return status;
-	}
-	if (ioctlsocket(*host, FIONBIO, &mode) == SOCKET_ERROR) {
-		status = WSAGetLastError();
-		return status;
-	}
-	if (bind(*host, (*addr)->ai_addr, (*addr)->ai_addrlen) == SOCKET_ERROR) {
-		status = WSAGetLastError();
-		return status;
-	}
+	if (*host == INVALID_SOCKET)
+		return WSAGetLastError();
+	if (ioctlsocket(*host, FIONBIO, &mode) == SOCKET_ERROR)
+		return WSAGetLastError();
+	if (bind(*host, (*addr)->ai_addr, (*addr)->ai_addrlen) == SOCKET_ERROR)
+		return WSAGetLastError();
 	return 0;
 }
 
@@ -124,18 +123,11 @@ int main() {
 	int numPlayers = 0;
 	while (!(GetAsyncKeyState(VK_END) & 0x01)) {
 
-		// If the server's full, don't even bother accepting new sockets
-		if (numPlayers == MAX_PLAYERS)
-			goto sync;
-
-		// If there's no incoming connection requests, skip straight to syncing
-		SOCKET waiter = accept(host, NULL, NULL);
-		if (waiter == INVALID_SOCKET)
-			goto sync;
-
-		// If the incoming player's socket cannot be non-blocking, kick it out
+		// Player Validation
 		u_long mode = 1;
-		if (ioctlsocket(waiter, FIONBIO, &mode) == SOCKET_ERROR) {
+		SOCKET waiter = accept(host, NULL, NULL);
+		if (numPlayers == MAX_PLAYERS ||
+			ioctlsocket(waiter, FIONBIO, &mode) == SOCKET_ERROR) {
 			closesocket(waiter);
 			goto sync;
 		}
