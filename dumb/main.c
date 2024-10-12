@@ -8,14 +8,14 @@
 // 
 // TODO:
 // - Make player positions floats for deltaTime dependent movement
-//	 - Make a function for serializing floats
-//   - Make a function for deserializing floats
 //	 - Allocate the full 32 bits for both the union msg's xPos and yPos
 //   - Make the union msg's xPos and yPos unsigned ints
 
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <math.h>
+#include <stdio.h>
+#include "floatpacker.h"
 
 #pragma comment(lib, "Ws2_32.lib") 
 
@@ -25,8 +25,8 @@
 struct player {
 	SOCKET waiter;
 	unsigned int id;
-	signed int xPos;
-	signed int yPos;
+	float xPos;
+	float yPos;
 };
 
 // How the client and server will MOSTLY format their messages when talking to each other
@@ -47,103 +47,20 @@ union msg {
 		// 2 - Player Leave
 		// 3 - Player Move
 		unsigned int type : 2;
-
+		
 		// ID of player who sent the message
 		unsigned int id : 2;
-
+		
 		// Position of player who sent the message
-		signed int xPos : 14;
-		signed int yPos : 14;
+		unsigned int xPos;
+		unsigned int yPos;
 	};
-	int whole;
-	char raw[4];
+	unsigned int whole[3];
+	unsigned char raw[12];
 };
 
-// Convert a denary value into IEEE 754 standard 32 bit floating point binary
-unsigned int serializefloat(float den) {
-
-	// Extract the number's sign
-	unsigned int signBit = (int)(den < 0);
-
-	// We already have the number's sign, so turn it into an absolute value to simplify things
-	if (signBit == 1)
-		den *= -1;
-
-	// Split the denary value into two parts: its whole component and its fractional component
-	unsigned int whole = den;
-	float fraction = den - whole;
-
-	// Convert the two parts into binary
-	unsigned int fracBin = 0;
-	unsigned int iFracBin = 0;
-	while (fraction != 0) {
-		fraction *= 2;
-
-		unsigned int whole = (unsigned int)fraction;
-		fracBin |= (whole) << iFracBin;
-		fraction -= (whole);
-
-		iFracBin++;
-	}
-
-	unsigned int fracBinWidth = iFracBin;
-
-	unsigned int revFracBin = 0;
-	unsigned int iRevFracBin = 0;
-	while (iFracBin != 0) {
-		revFracBin |= ((fracBin & (1 << iRevFracBin)) >> iRevFracBin) << (iFracBin - 1);
-		iRevFracBin++;
-		iFracBin--;
-	}
-
-	unsigned int fullNumBin = (whole << fracBinWidth) | revFracBin;
-	unsigned int point = fracBinWidth;
-
-	unsigned int oneSeeker = 31;
-	unsigned int fullNumBit = 0;
-	while (fullNumBit != 1) {
-		fullNumBit = (fullNumBin & (1 << oneSeeker)) >> oneSeeker;
-		oneSeeker--;
-	}
-
-	unsigned int mantissaBitWidth = oneSeeker + 1;
-	unsigned int biasedExponent = (mantissaBitWidth - point) + 127;
-
-	unsigned int mantissaBitMask = 0;
-	unsigned int iMantissa = 0;
-	while (iMantissa < mantissaBitWidth) {
-		mantissaBitMask |= 1 << iMantissa;
-		iMantissa++;
-	}
-	unsigned int mantissa = (fullNumBin & mantissaBitMask) << (23 - mantissaBitWidth);
-
-	return mantissa | (biasedExponent << 23) | (signBit << 31);
-}
-
-float deserializefloat(unsigned int bin) {
-	unsigned int sign = (bin & (1 << 31)) >> 31;
-	unsigned int exp = (bin & (0b11111111 << 23)) >> 23;
-	unsigned int unbias = exp - 127;
-	unsigned int mantissaBin = bin & 0b11111111111111111111111;
-	signed int iMantissaBin = 22;
-	float currentPlace = 0.5f;
-	float mantissaDen = 1.0f;
-	while (iMantissaBin >= 0) {
-		if (((mantissaBin & (1 << iMantissaBin)) >> iMantissaBin) == 1)
-			mantissaDen += currentPlace;
-		iMantissaBin--;
-		currentPlace /= 2;
-	}
-
-	float den = mantissaDen;
-	if (sign == 1)
-		den *= -1;
-
-	return den * pow(2, unbias);
-}
-
 // Create a message ready for send or recv
-union msg formatmsg(unsigned int type, unsigned int id, signed int xPos, signed int yPos) {
+union msg formatmsg(unsigned int type, unsigned int id, unsigned int xPos, unsigned int yPos) {
 	union msg msg;
 	msg.type = type;
 	msg.id = id;
@@ -227,8 +144,8 @@ int main() {
 				next = &(players[i]);
 				next->waiter = waiter;
 				next->id = i + 1;
-				next->xPos = 0;
-				next->yPos = 0;
+				next->xPos = 0.0f;
+				next->yPos = 0.0f;
 				break;
 			}
 		}
@@ -242,19 +159,25 @@ int main() {
 		// The player has now officially joined the server
 		// Signal other players that this player joined 
 		// Also signal the one who just joined so they know which player they are
-		union msg joiner = formatmsg(1, next->id, next->xPos, next->yPos);
-		joiner.whole = htonl(joiner.whole);
+		union msg joiner = formatmsg(1, next->id, packfloat(next->xPos), packfloat(next->yPos));
+
+		joiner.whole[0] = htonl(joiner.whole[0]);
+		joiner.whole[1] = htonl(joiner.whole[1]);
+		joiner.whole[2] = htonl(joiner.whole[2]);
 		for (int i = 0; i < MAX_PLAYERS; i++)
 			if (players[i].id != VACANT_PLAYER)
 				send(players[i].waiter, joiner.raw, sizeof(joiner), 0);
-		
+
 		// Signal only the player who just joined about who already joined the server
 		for (int i = 0; i < MAX_PLAYERS; i++) {
 			if (players[i].id == next->id || 
 				players[i].id == VACANT_PLAYER)
 				continue;
-			union msg existing = formatmsg(1, players[i].id, players[i].xPos, players[i].yPos);
-			existing.whole = htonl(existing.whole);
+			union msg existing = formatmsg(1, players[i].id, packfloat(players[i].xPos), packfloat(players[i].yPos));
+
+			existing.whole[0] = htonl(existing.whole[0]);
+			existing.whole[1] = htonl(existing.whole[1]);
+			existing.whole[2] = htonl(existing.whole[2]);
 			send(next->waiter, existing.raw, sizeof(existing), 0);
 		}
 
@@ -272,19 +195,25 @@ int main() {
 			// Zero buffer is used to represent no activity
 			// If the buffer has junk value, it could get misinterpreted as activity
 			union msg activity;
-			activity.whole = 0;
+			activity.whole[0] = 0;
+			activity.whole[1] = 0;
+			activity.whole[2] = 0;
 			int numBytes = recv(players[i].waiter, activity.raw, sizeof(activity), 0);
-			activity.whole = ntohl(activity.whole);
+			activity.whole[0] = ntohl(activity.whole[0]);
+			activity.whole[1] = ntohl(activity.whole[1]);
+			activity.whole[2] = ntohl(activity.whole[2]);
 
 			// Check if the player disconnected cleanly or force closed the program
 			if (numBytes == 0 ||
 				WSAGetLastError() == 10054) {
-
-				union msg leaver = formatmsg(2, players[i].id, 0, 0);
+				
+				union msg leaver = formatmsg(2, players[i].id, packfloat(players[i].xPos), packfloat(players[i].yPos));
 				closesocket(players[i].waiter);
 				ZeroMemory(&(players[i]), sizeof(players[i]));
 
-				leaver.whole = htonl(leaver.whole);
+				leaver.whole[0] = htonl(leaver.whole[0]);
+				leaver.whole[1] = htonl(leaver.whole[1]);
+				leaver.whole[2] = htonl(leaver.whole[2]);
 				for (int i = 0; i < MAX_PLAYERS; i++)
 					if (players[i].id != VACANT_PLAYER)
 						send(players[i].waiter, leaver.raw, sizeof(leaver), 0);
@@ -292,11 +221,13 @@ int main() {
 				numPlayers--;
 			}
 			else if (activity.type == 3) {
-				players[activity.id - 1].xPos = activity.xPos;
-				players[activity.id - 1].yPos = activity.yPos;
+				players[activity.id - 1].xPos = unpackfloat(activity.xPos);
+				players[activity.id - 1].yPos = unpackfloat(activity.yPos);
 
-				union msg mover = formatmsg(3, activity.id, activity.xPos, activity.yPos);
-				mover.whole = htonl(mover.whole);
+				union msg mover = formatmsg(3, activity.id, packfloat(players[activity.id - 1].xPos), packfloat(players[activity.id - 1].yPos));
+				mover.whole[0] = htonl(mover.whole[0]);
+				mover.whole[1] = htonl(mover.whole[1]);
+				mover.whole[2] = htonl(mover.whole[2]);
 				for (int i = 0; i < MAX_PLAYERS; i++)
 					if (players[i].id != VACANT_PLAYER)
 						send(players[i].waiter, mover.raw, sizeof(mover), 0);
