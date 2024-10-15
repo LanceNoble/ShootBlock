@@ -1,3 +1,5 @@
+#include <math.h>
+
 #include "comms.h"
 
 // Convert from denary to IEEE 754 binary

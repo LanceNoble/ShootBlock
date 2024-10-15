@@ -136,6 +136,7 @@
     <ClCompile Include="message.c" />
     <ClCompile Include="player.c" />
     <ClCompile Include="server.c" />
+    <ClCompile Include="wsa.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="client.h" />

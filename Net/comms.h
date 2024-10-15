@@ -2,12 +2,15 @@
 
 #include <winsock2.h>
 #include <ws2tcpip.h>
-#include <math.h>
 
 #pragma comment(lib, "Ws2_32.lib")
 
 #define MAX_PLAYERS 4
 #define PORT "3490"
+
+extern WSADATA* wsaData = NULL;
+int wsa_create();
+int wsa_destroy();
 
 union Message* message_create();
 void message_format(union Message* m, unsigned int type, unsigned int id, unsigned int xPos, unsigned int yPos);
