@@ -132,6 +132,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="client.c" />
+    <ClCompile Include="mem.c" />
     <ClCompile Include="floatpacker.c" />
     <ClCompile Include="message.c" />
     <ClCompile Include="player.c" />
@@ -141,6 +142,7 @@
   <ItemGroup>
     <ClInclude Include="client.h" />
     <ClInclude Include="comms.h" />
+    <ClInclude Include="mem.h" />
     <ClInclude Include="player.h" />
     <ClInclude Include="server.h" />
   </ItemGroup>

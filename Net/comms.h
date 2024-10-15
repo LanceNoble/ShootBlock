@@ -8,7 +8,7 @@
 #define MAX_PLAYERS 4
 #define PORT "3490"
 
-extern WSADATA* wsaData = NULL;
+extern WSADATA* wsaDataFUCK;
 int wsa_create();
 int wsa_destroy();
 
