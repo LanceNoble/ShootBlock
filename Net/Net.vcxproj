@@ -21,7 +21,7 @@
   <PropertyGroup Label="Globals">
     <VCProjectVersion>17.0</VCProjectVersion>
     <Keyword>Win32Proj</Keyword>
-    <ProjectGuid>{a2c79d8f-f788-4d31-8ddd-68436980c844}</ProjectGuid>
+    <ProjectGuid>{93568ebf-2411-44da-87e1-4780712b2c9e}</ProjectGuid>
     <RootNamespace>Net</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
@@ -131,17 +131,17 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClInclude Include="client.h" />
-    <ClInclude Include="comms.h" />
-    <ClInclude Include="player.h" />
-    <ClInclude Include="server.h" />
-  </ItemGroup>
-  <ItemGroup>
     <ClCompile Include="client.c" />
     <ClCompile Include="floatpacker.c" />
     <ClCompile Include="message.c" />
     <ClCompile Include="player.c" />
     <ClCompile Include="server.c" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="client.h" />
+    <ClInclude Include="comms.h" />
+    <ClInclude Include="player.h" />
+    <ClInclude Include="server.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
