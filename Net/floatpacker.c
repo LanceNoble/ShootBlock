@@ -1,5 +1,4 @@
-#include <math.h>
-#include "floatpacker.h"
+#include "comms.h"
 
 // Convert from denary to IEEE 754 binary
 // den - number to convert
@@ -7,7 +6,7 @@
 //
 // Return UNSIGNED int to ensure control over all bits
 // Otherwise, compiler takes control of top bit
-unsigned int packfloat(float den) {
+unsigned int float_pack(float den) {
 
 	// If we don't check to see if den has zero whole parts, this function will run forever
 	// It will cause inaccuracies, but I don't wanna add more code just to differentiate 0.0923 from 0
@@ -23,7 +22,7 @@ unsigned int packfloat(float den) {
 		den *= -1;
 
 	// Split den into two parts: its whole and its fraction
-	unsigned int whole = den;
+	unsigned int whole = (unsigned int)den;
 	float fraction = den - whole;
 
 	// Convert each part to binary
@@ -93,7 +92,7 @@ unsigned int packfloat(float den) {
 //
 // Take in UNSIGNED int to ensure control over all bits
 // Otherwise, compiler takes control of top bit
-float unpackfloat(unsigned int bin) {
+float float_unpack(unsigned int bin) {
 
 	// If this condition isn't checked, the function will return infinity
 	if (bin == 0)
@@ -118,5 +117,5 @@ float unpackfloat(unsigned int bin) {
 	if (sign == 1)
 		mantissaDen *= -1;
 
-	return mantissaDen * pow(2, unBiEx);
+	return mantissaDen * (float)pow(2, unBiEx);
 }
