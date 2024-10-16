@@ -1,4 +1,5 @@
 #define MEM_DEBUG_MODE
+#include "comms.h"
 #include "mem.h"
 
 int main() {
@@ -13,6 +14,14 @@ int main() {
 	free(c);
 	mem_track_show();
 	mem_track_destroy();
+
+	wsa_create();
+	wsa_create();
+	wsa_create();
+
+	wsa_destroy();
+	wsa_destroy();
+	wsa_destroy();
 
 	return 0;
 }
