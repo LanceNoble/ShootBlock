@@ -11,7 +11,7 @@ static struct addrinfo* addr = NULL;
 
 static struct Player* players[MAX_PLAYERS];
 static struct Player* player = NULL;
-static union Message* msg = NULL;
+static union Msg* msg = NULL;
 
 int client_create() {
 	WSADATA wsaData;
@@ -22,7 +22,7 @@ int client_create() {
 	for (int i = 0; i < MAX_PLAYERS; i++)
 		players[i] = NULL;
 
-	msg = message_create();
+	msg = msg_create();
 	return status;
 }
 int client_join(char* ip) {
@@ -55,7 +55,7 @@ int client_sync(struct Player** p, struct Player*** ps, unsigned int* numPlayers
 	unsigned int id;
 	unsigned int xPos;
 	unsigned int yPos;
-	int numBytes = message_fetch(msg, &guest, &type, &id, &xPos, &yPos);
+	int numBytes = msg_fetch(msg, &guest, &type, &id, &xPos, &yPos);
 
 	if (numBytes == SOCKET_ERROR || numBytes == 0)
 		return numBytes;
@@ -84,9 +84,9 @@ void client_notify(float x, float y) {
 		return;
 	unsigned int id;
 	player_get(player, &id, NULL, NULL);
-	message_format(msg, 3, id, float_pack(x), float_pack(y));
-	message_flip(msg);
-	message_send(msg, &guest);
+	msg_format(msg, 3, id, float_pack(x), float_pack(y));
+	msg_flip(msg);
+	msg_send(msg, &guest);
 }
 void client_leave() {
 	status = 0;
@@ -96,9 +96,9 @@ void client_leave() {
 	closesocket(guest);
 	guest = INVALID_SOCKET;
 	player = NULL;
-	message_format(msg, 0, 0, 0, 0);
+	msg_format(msg, 0, 0, 0, 0);
 }
 void client_destroy() {
-	message_destroy(&msg);
+	msg_destroy(&msg);
 	WSACleanup();
 }

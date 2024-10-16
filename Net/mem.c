@@ -1,106 +1,144 @@
 #include "mem.h"
 
+// Ensure that the actual <stdlib.h> calls to malloc and free are used in this file
+#ifdef MEM_DEBUG_MODE
+#undef malloc
+#undef free
+#endif // MEM_DEBUG_MODE
+
 #include <stdlib.h>
 #include <stdio.h>
 
-enum MemEvtAct {
-	ALLOC = 0,
-	FREE = 1
-};
+#define ALLOC 0
+#define FREE 1
 
 struct MemEvt {
-	char* file;
+	const char* file;
 	unsigned int line;
-	enum MemEvtAct act;
+	unsigned int act;
 	unsigned int sz;
 	void* ptr;
 };
 
-static unsigned int numMemEvts = 0;
+static unsigned int numBytes = 0;
 
-static unsigned int szMemEvts = 1;
-static struct MemEvt* memEvts = NULL;
+static unsigned int numAllocEvts = 0;
+static unsigned int szAllocEvts = 1;
+static struct MemEvt* allocEvts = NULL;
 
-static int mem_track_resize() {
-	numMemEvts++;
-	if (numMemEvts > szMemEvts) {
-		szMemEvts *= 2;
-		auto struct MemEvt* reallocMemEvts = (struct MemEvt*)(realloc(memEvts, szMemEvts * sizeof(struct MemEvt)));
-		if (reallocMemEvts == NULL) {
-			numMemEvts--;
+static unsigned int numFreeEvts = 0;
+static unsigned int szFreeEvts = 1;
+static struct MemEvt* freeEvts = NULL;
+
+static int mem_track_resize(struct MemEvt** evts, unsigned int* numEvts, unsigned int* szEvts) {
+	if ((*numEvts) + 1 > *szEvts) {
+		(*szEvts) *= 2;
+		struct MemEvt* reallocEvts = (struct MemEvt*)(realloc((*evts), (*szEvts) * sizeof(struct MemEvt)));
+		if (reallocEvts == NULL)
 			return 1;
-		}
-		memEvts = reallocMemEvts;
+		*evts = reallocEvts;
 	}
 	return 0;
 }
 
 extern void mem_track_create() {
-	if (memEvts != NULL)
+	if (allocEvts != NULL)
 		return;
-	memEvts = malloc(szMemEvts * sizeof(struct MemEvt));
-	if (memEvts == NULL)
+	allocEvts = malloc(szAllocEvts * sizeof(struct MemEvt));
+	freeEvts = malloc(szFreeEvts * sizeof(struct MemEvt));
+	if (allocEvts == NULL || freeEvts == NULL)
 		return;
 }
 
-extern void* mem_track_alloc(unsigned int sz, char* file, unsigned int line) {
-	if (memEvts == NULL)
+extern void* mem_track_alloc(const unsigned int sz, const char* file, const unsigned int line) {
+	if (allocEvts == NULL)
 		return NULL;
 
-	if (mem_track_resize() == 1)
+	if (mem_track_resize(&allocEvts, &numAllocEvts, &szAllocEvts) == 1)
 		return NULL;
 
-	auto void* ptr = malloc(sz);
-	memEvts[numMemEvts - 1].file = file;
-	memEvts[numMemEvts - 1].line = line;
-	memEvts[numMemEvts - 1].act = ALLOC;
+	void* ptr = malloc(sz);
 	if (ptr == NULL)
-		memEvts[numMemEvts - 1].sz = 0;
-	else
-		memEvts[numMemEvts - 1].sz = sz;
-	memEvts[numMemEvts - 1].ptr = ptr;
+		return NULL;
+
+	allocEvts[numAllocEvts].file = file;
+	allocEvts[numAllocEvts].line = line;
+	allocEvts[numAllocEvts].act = ALLOC;
+	allocEvts[numAllocEvts].sz = sz;
+	allocEvts[numAllocEvts].ptr = ptr;
+
+	numBytes += sz;
+	numAllocEvts++;
 
 	return ptr;
 }
 
-extern void mem_track_free(void* ptr, unsigned int sz, char* file, unsigned int line) {
-	if (memEvts == NULL)
+extern void mem_track_free(void** ptr, const char* file, const unsigned int line) {
+	if (allocEvts == NULL)
 		return;
 
-	if (mem_track_resize() == 1)
+	if (mem_track_resize(&freeEvts, &numFreeEvts, &szFreeEvts) == 1)
 		return;
 
-	memEvts[numMemEvts - 1].file = file;
-	memEvts[numMemEvts - 1].line = line;
-	memEvts[numMemEvts - 1].act = FREE;
-	memEvts[numMemEvts - 1].sz = sz;
-	memEvts[numMemEvts - 1].ptr = ptr;
-	free(ptr);
+	if (*ptr == NULL)
+		return;
+
+	unsigned int i = 0;
+	while (i < numAllocEvts) {
+		if (allocEvts[i].ptr == *ptr)
+			break;
+		i++;
+	}
+	if (i == numAllocEvts)
+		return;
+
+	freeEvts[numFreeEvts].file = file;
+	freeEvts[numFreeEvts].line = line;
+	freeEvts[numFreeEvts].act = FREE;
+	freeEvts[numFreeEvts].sz = allocEvts[i].sz;
+	freeEvts[numFreeEvts].ptr = *ptr;
+
+	numBytes -= allocEvts[i].sz;
+	numFreeEvts++;
+
+	free(*ptr);
+	*ptr = NULL;
 }
 
-void mem_track_show() {
+extern void mem_track_show() {
+	printf("You allocated %lu times\n", numAllocEvts);
+	printf("You freed %lu times\n", numFreeEvts);
+	printf("%lu bytes remain\n", numBytes);
+	/*
 	unsigned int iEvent = 0;
 
-	while (iEvent < numMemEvts) {
-		printf("File: %s\n", memEvts[iEvent].file);
-		printf("Line: %lu\n", memEvts[iEvent].line);
-		printf("Action: ");
-		if (memEvts[iEvent].act == ALLOC)
-			printf("ALLOC\n");
-		else if (memEvts[iEvent].act == FREE)
-			printf("FREE\n");
-		printf("Size: %lu\n", memEvts[iEvent].sz);
-		printf("Address: %p\n", memEvts[iEvent].ptr);
+	while (iEvent < numAllocEvts) {
+		printf("File: %s\n", allocEvts[iEvent].file);
+		printf("Line: %lu\n", allocEvts[iEvent].line);
+		if (allocEvts[iEvent].act == ALLOC)
+			printf("ALLOCATED ");
+		else if (allocEvts[iEvent].act == FREE)
+			printf("FREED ");
+		printf("%lu Bytes at Address %p (%lu Bytes Remain)\n", allocEvts[iEvent].sz, allocEvts[iEvent].ptr, numBytes);
 		printf("\n");
 		
 		iEvent++;
 	}
+	*/
 }
 
 extern void mem_track_destroy() {
-	numMemEvts = 0;
-	szMemEvts = 1;
+	numBytes = 0;
 
-	free(memEvts);
-	memEvts = NULL;
+	numAllocEvts = 0;
+	szAllocEvts = 1;
+
+	numFreeEvts = 0;
+	szFreeEvts = 1;
+
+	free(allocEvts);
+	allocEvts = NULL;
+	
+	free(freeEvts);
+	freeEvts = NULL;
 }

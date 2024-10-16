@@ -1,4 +1,4 @@
-#include "raylib.h"
+//#include "raylib.h"
 #include "button.h"
 #include "client.h"
 #include "player.h"
@@ -6,6 +6,10 @@
 
 
 int main() {
+	InitWindow(1280, 800, "Hello Raylib");
+	return;
+
+	/*
 	client_create();
 
 	SetConfigFlags(FLAG_VSYNC_HINT | FLAG_WINDOW_HIGHDPI);
@@ -120,4 +124,5 @@ int main() {
 	client_destroy();
 
 	return 0;
+	*/
 }

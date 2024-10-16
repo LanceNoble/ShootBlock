@@ -12,7 +12,7 @@
 // 3. Char Array Form makes it easier to send and recv
 //
 // Not all message types will utilize all bit fields
-union Message {
+union Msg {
 	struct {
 		// 1 - Player Join (Server to Player only)
 		// 2 - Player Leave (Server to Player only)
@@ -29,31 +29,73 @@ union Message {
 	unsigned int whole[3];
 	unsigned char raw[12];
 };
-union Message* message_create() {
-	union Message* m = malloc(sizeof(union Message));
+
+struct MSG {
+	char* buf;
+	unsigned short sz;
+	unsigned short flipped;
+};
+struct MSG* MSG_create() {
+	struct MSG* m = malloc(sizeof(struct MSG));
+	if (m == NULL)
+		return NULL;
+	m->buf = "\0";
+	m->sz = 1;
+	m->flipped = 0;
+	return m;
+}
+void MSG_set(struct MSG* m, char* buf, const unsigned short sz) {
+	m->buf = buf;
+	m->sz = sz;
+}
+int MSG_send(struct MSG* m, SOCKET* s) {
+	if (!m->flipped) {
+		flip(m->buf, m->sz);
+		m->flipped = 1;
+	}
+	unsigned short sz = send(*s, m->buf, m->sz, 0);
+	if (sz == SOCKET_ERROR)
+		return WSAGetLastError();
+	return sz;
+}
+int MSG_recv(struct MSG* m, SOCKET* s) {
+	m->flipped = 0;
+	unsigned short sz = recv(*s, m->buf, m->sz, 0);
+	flip(m->buf, m->sz);
+	if (sz == SOCKET_ERROR)
+		return WSAGetLastError();
+	return sz;
+}
+void MSG_destroy(struct MSG** m) {
+	free(*m);
+	*m = NULL;
+}
+
+union Msg* msg_create() {
+	union Msg* m = malloc(sizeof(union Msg));
 	if (m == NULL)
 		return NULL;
 	return m;
 }
-void message_format(union Message* m, unsigned int type, unsigned int id, unsigned int xPos, unsigned int yPos) {
+void msg_format(union Msg* m, unsigned int type, unsigned int id, unsigned int xPos, unsigned int yPos) {
 	m->type = type;
 	m->id = id;
 	m->xPos = xPos;
 	m->yPos = yPos;
 }
-void message_flip(union Message* m) {
+void msg_flip(union Msg* m) {
 	m->whole[0] = htonl(m->whole[0]);
 	m->whole[1] = htonl(m->whole[1]);
 	m->whole[2] = htonl(m->whole[2]);
 }
-int message_send(union Message* m, SOCKET* s) {
+int msg_send(union Msg* m, SOCKET* s) {
 	int numBytes = send(*s, m->raw, sizeof(*m), 0);
 	if (numBytes == SOCKET_ERROR)
 		return WSAGetLastError();
 	return numBytes;
 }
-int message_fetch(union Message* m, SOCKET* s, unsigned int* type, unsigned int* id, unsigned int* xPos, unsigned int* yPos) {
-	message_format(m, 0, 0, 0, 0);
+int msg_fetch(union Msg* m, SOCKET* s, unsigned int* type, unsigned int* id, unsigned int* xPos, unsigned int* yPos) {
+	msg_format(m, 0, 0, 0, 0);
 
 	int numBytes = recv(*s, m->raw, sizeof(*m), 0);
 	if (numBytes == SOCKET_ERROR)
@@ -74,7 +116,7 @@ int message_fetch(union Message* m, SOCKET* s, unsigned int* type, unsigned int*
 
 	return numBytes;
 }
-void message_destroy(union Message** m) {
+void msg_destroy(union Msg** m) {
 	free(*m);
 	*m = NULL;
 }

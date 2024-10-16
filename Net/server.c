@@ -18,7 +18,7 @@ static struct addrinfo* addr = NULL;
 static unsigned int numClients = 0;
 static struct Client clients[MAX_PLAYERS];
 
-static union Message* msg = NULL;
+static union Msg* msg = NULL;
 
 int server_create() {
 	WSADATA wsaData;
@@ -42,7 +42,7 @@ int server_create() {
 		clients[i].player = NULL;
 	}
 
-	msg = message_create();
+	msg = msg_create();
 	return status;
 }
 
@@ -94,13 +94,13 @@ void server_greet() {
 	}
 
 	printf("Player %i Joined\n", nextId);
-	message_format(msg, 1, nextId, 
+	msg_format(msg, 1, nextId, 
 		float_pack(nextXPos),
 		float_pack(nextYPos));
-	message_flip(msg);
+	msg_flip(msg);
 	for (int i = 0; i < MAX_PLAYERS; i++)
 		if (clients[i].player != NULL)
-			printf("Telling Player %i that Player %i joined: %i\n", i + 1, nextId, message_send(msg, &(clients[i].waiter)));
+			printf("Telling Player %i that Player %i joined: %i\n", i + 1, nextId, msg_send(msg, &(clients[i].waiter)));
 
 	for (int i = 0; i < MAX_PLAYERS; i++) {
 		if (clients[i].player == NULL)
@@ -114,12 +114,12 @@ void server_greet() {
 		if (oldId == nextId)
 			continue;
 
-		message_format(msg, 1, oldId, 
+		msg_format(msg, 1, oldId, 
 			float_pack(oldXPos), 
 			float_pack(oldYPos));
-		message_flip(msg);
+		msg_flip(msg);
 		
-		printf("Telling Player %i that Player %i exists: %i\n", nextId, i + 1, message_send(msg, &(next->waiter)));
+		printf("Telling Player %i that Player %i exists: %i\n", nextId, i + 1, msg_send(msg, &(next->waiter)));
 	}
 
 	printf("\n");
@@ -136,7 +136,7 @@ void server_sync() {
 		unsigned int idActivity = 0;
 		unsigned int xPosActivity = 0;
 		unsigned int yPosActivity = 0;
-		int numBytes = message_fetch(msg, &(clients[i].waiter), &typeActivity, &idActivity, &xPosActivity, &yPosActivity);
+		int numBytes = msg_fetch(msg, &(clients[i].waiter), &typeActivity, &idActivity, &xPosActivity, &yPosActivity);
 
 		if (numBytes == 0 ||
 			WSAGetLastError() == 10054) {
@@ -147,11 +147,11 @@ void server_sync() {
 			player_destroy(&(clients[i].player));
 			clients[i].waiter = INVALID_SOCKET;
 
-			message_format(msg, 2, i + 1, 0, 0);
-			message_flip(msg);
+			msg_format(msg, 2, i + 1, 0, 0);
+			msg_flip(msg);
 			for (int j = 0; j < MAX_PLAYERS; j++)
 				if (clients[j].player != NULL)
-					printf("Telling Player %i that Player %i left: %i\n", j + 1, i + 1, message_send(msg, &(clients[j].waiter)));
+					printf("Telling Player %i that Player %i left: %i\n", j + 1, i + 1, msg_send(msg, &(clients[j].waiter)));
 
 			printf("\n");
 
@@ -163,11 +163,11 @@ void server_sync() {
 
 			player_place(clients[i].player, float_unpack(xPosActivity), float_unpack(yPosActivity));
 
-			message_format(msg, typeActivity, idActivity, xPosActivity, yPosActivity);
-			message_flip(msg);
+			msg_format(msg, typeActivity, idActivity, xPosActivity, yPosActivity);
+			msg_flip(msg);
 			for (int j = 0; j < MAX_PLAYERS; j++) {
 				if (clients[j].player != NULL) {
-					printf("Telling Player %i that Player %i moved: %i\n", j + 1, i + 1, message_send(msg, &(clients[j].waiter)));
+					printf("Telling Player %i that Player %i moved: %i\n", j + 1, i + 1, msg_send(msg, &(clients[j].waiter)));
 
 				}
 					
@@ -188,11 +188,11 @@ void server_stop() {
 	}
 	closesocket(host);
 	host = INVALID_SOCKET;
-	message_format(msg, 0, 0, 0, 0);
+	msg_format(msg, 0, 0, 0, 0);
 }
 
 void server_destroy() {
 	freeaddrinfo(addr);
-	message_destroy(&msg);
+	msg_destroy(&msg);
 	WSACleanup();
 }

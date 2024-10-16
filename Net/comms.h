@@ -5,19 +5,27 @@
 
 #pragma comment(lib, "Ws2_32.lib")
 
+#include "mem.h"
+
 #define MAX_PLAYERS 4
 #define PORT "3490"
 
-extern WSADATA* wsaDataFUCK;
 int wsa_create();
+void flip(char* bytes, const unsigned short sz);
 int wsa_destroy();
 
-union Message* message_create();
-void message_format(union Message* m, unsigned int type, unsigned int id, unsigned int xPos, unsigned int yPos);
-void message_flip(union Message* m);
-int message_send(union Message* m, SOCKET* s);
-int message_fetch(union Message* m, SOCKET* s, unsigned int* type, unsigned int* id, unsigned int* xPos, unsigned int* yPos);
-void message_destroy(union Message** m);
+struct MSG* MSG_create();
+void MSG_set(struct MSG* m, char* buf, const unsigned short sz);
+int MSG_send(struct MSG* m, SOCKET* s);
+int MSG_recv(struct MSG* m, SOCKET* s);
+void MSG_destroy(struct MSG** m);
+
+union Msg* msg_create();
+void msg_format(union Msg* m, unsigned int type, unsigned int id, unsigned int xPos, unsigned int yPos);
+void msg_flip(union Msg* m);
+int msg_send(union Msg* m, SOCKET* s);
+int msg_fetch(union Msg* m, SOCKET* s, unsigned int* type, unsigned int* id, unsigned int* xPos, unsigned int* yPos);
+void msg_destroy(union Msg** m);
 
 unsigned int float_pack(float den);
 float float_unpack(unsigned int bin);
