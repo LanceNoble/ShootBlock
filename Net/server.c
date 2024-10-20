@@ -16,11 +16,6 @@ struct Server {
 	unsigned char data[SYNC_SIZE];
 	union Bump bumps[SERVER_MAX];
 
-	// The MAX_PLAYERMAX_CONFIG dimension represents a player on the server
-	// The MAX_NUMSTATS_CONFIG dimension represents that player's stat
-	// The MAX_STATSIZE dimension represents the actual bytes of that stat's value
-	// unsigned char data[MAX_PLAYERMAX][MAX_NUMSTATS][MAX_STATSIZE];
-
 	// +1 to include the server's socket
 	struct pollfd monitors[1 + SERVER_MAX];
 

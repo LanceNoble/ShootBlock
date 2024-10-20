@@ -53,11 +53,25 @@
 #define CON_BYTE_OFF 0b00000000
 #define CON_BYTE_ON 0b11111111
 
+// The message the client will receive from the server upon joining
+// The only real useful bits in this message as of now are the "you" bits
+// But I just feel like padding out the rest of the buffer with something
 union Meta {
 	struct {
-		unsigned char id : 2;
+		
+		// Which player the client is
+		unsigned char you : 2;
 
+		// Server's player max
+		// Recipients must offset this value by +1 since a value of 0 can be sent
+		unsigned char max : 2;
+
+		// How many bytes this server is using to represent a player
+		// Recipients must offset this value by +1 since a value of 0 can be sent
+		unsigned char size : 4;
 	};
+
+	unsigned char raw[1];
 };
 
 // The message both the server and client will send to each other for syncing
@@ -71,8 +85,7 @@ union Bump {
 		unsigned char start : 4;
 
 		// Size of data
-		// Any socket sending or receiving this bump must offset this value by +1
-		// This is because a value of 0 can be sent
+		// Recipients must offset this value by +1 since a value of 0 can be sent
 		unsigned char size : 2;
 
 		// Actual new value of the stat (in bytes)
