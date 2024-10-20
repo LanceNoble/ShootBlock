@@ -2,7 +2,7 @@
 
 #pragma once
 
-// Seamlessly switch between debug and release
+// Seamlessly switch between debug and no-debug memory
 #ifdef MEM_DEBUG_MODE
 extern void mem_track_create();
 extern void* mem_track_alloc(const unsigned int sz, const char* file, const unsigned int line);

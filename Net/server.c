@@ -1,30 +1,64 @@
-#include <stdio.h>
+#include "server.h"
+
+#include <winsock2.h>
+#include <ws2tcpip.h>
 
 #include "comms.h"
-#include "server.h"
-#include "player.h"
 
-struct Client {
-	SOCKET waiter;
-	struct Player* player;
+struct Spot {
+	unsigned char val;
+	struct Spot* next;
 };
 
-static signed int status = 0;
+struct Server {
+	unsigned char max;
+	unsigned char numPlayers;
+	unsigned char data[SYNC_SIZE];
+	union Bump bumps[SERVER_MAX];
 
-static u_long blockMode = 1;
-static SOCKET host = INVALID_SOCKET;
-static struct addrinfo* addr = NULL;
+	// The MAX_PLAYERMAX_CONFIG dimension represents a player on the server
+	// The MAX_NUMSTATS_CONFIG dimension represents that player's stat
+	// The MAX_STATSIZE dimension represents the actual bytes of that stat's value
+	// unsigned char data[MAX_PLAYERMAX][MAX_NUMSTATS][MAX_STATSIZE];
 
-static unsigned int numClients = 0;
-static struct Client clients[MAX_PLAYERS];
+	// +1 to include the server's socket
+	struct pollfd monitors[1 + SERVER_MAX];
 
-static union Msg* msg = NULL;
+	struct Spot* longestVacancy;
+	struct Spot* shortestVacancy;
+};
 
-int server_create() {
-	WSADATA wsaData;
-	status = WSAStartup(MAKEWORD(2, 2), &wsaData);
-	if (status != 0)
-		return status;
+static unsigned long noBlockMode = 1;
+
+struct Server* server_create(const char* const port, unsigned char max, unsigned char** data, union Bump** bumps) {
+
+	struct Server* server = malloc(sizeof(struct Server));
+	if (server == NULL)
+		return NULL;
+
+	server->max = max;
+	server->numPlayers = 0;
+	for (int i = 0; i < SERVER_MAX; i++)
+		server->data[i * PLAYER_SIZE] = CON_BYTE_OFF;
+	*data = server->data;
+	*bumps = server->bumps;
+
+	server->longestVacancy = malloc(sizeof(struct Spot));
+	if (server->longestVacancy == NULL) {
+		server_destroy(&server);
+		return NULL;
+	}
+	server->longestVacancy->val = 0;
+	server->shortestVacancy = server->longestVacancy;
+	for (int i = 1; i < SERVER_MAX; i++) {
+		server->shortestVacancy->next = malloc(sizeof(struct Spot));
+		if (server->shortestVacancy->next == NULL) {
+			server_destroy(&server);
+			return NULL;
+		}
+		server->shortestVacancy->next->val = i;
+		server->shortestVacancy = server->shortestVacancy->next;
+	}
 
 	struct addrinfo hints;
 	ZeroMemory(&hints, sizeof(hints));
@@ -33,166 +67,143 @@ int server_create() {
 	hints.ai_protocol = IPPROTO_TCP;
 	hints.ai_flags = AI_PASSIVE;
 
-	status = getaddrinfo(NULL, PORT, &hints, &addr);
-	if (status != 0)
-		return status;
-
-	for (int i = 0; i < MAX_PLAYERS; i++) {
-		clients[i].waiter = INVALID_SOCKET;
-		clients[i].player = NULL;
+	struct addrinfo* bindAddress;
+	if (getaddrinfo(NULL, port, &hints, &bindAddress) != 0) {
+		server_destroy(&server);
+		return NULL;
 	}
 
-	msg = msg_create();
-	return status;
-}
-
-int server_start() {
-	host = socket(addr->ai_family, addr->ai_socktype, addr->ai_protocol);
-	if (host == INVALID_SOCKET)
-		return WSAGetLastError();
-	if (ioctlsocket(host, FIONBIO, &blockMode) == SOCKET_ERROR)
-		return WSAGetLastError();
-	if (bind(host, addr->ai_addr, (int)addr->ai_addrlen) == SOCKET_ERROR)
-		return WSAGetLastError();
-	if (listen(host, SOMAXCONN) == SOCKET_ERROR)
-		return WSAGetLastError();
-	return 0;
-}
-
-void server_greet() {
-	SOCKET waiter = accept(host, NULL, NULL);
-	if (waiter == INVALID_SOCKET)
-		return;
-	if (numClients == MAX_PLAYERS) {
-		closesocket(waiter);
-		return;
-	}
-	if (ioctlsocket(waiter, FIONBIO, &blockMode) == SOCKET_ERROR) {
-		closesocket(waiter);
-		return;
-	}
-
-	struct Client* next = NULL;
-	unsigned int nextId = 0;
-	float nextXPos = 0.0f;
-	float nextYPos = 0.0f;
-	for (int i = 0; i < MAX_PLAYERS; i++) {
-		if (clients[i].player == NULL) {
-			nextId = i + 1;
-			// nextXPos = 
-			// nextYPos = 
-			clients[i].player = player_create(nextId, nextXPos, nextYPos);
-			clients[i].waiter = waiter;
-			next = &(clients[i]);
-			break;
+	for (int i = 0; i < 1 + SERVER_MAX; i++) {
+		if (i == 0) {
+			server->monitors[0].fd = socket(bindAddress->ai_family, bindAddress->ai_socktype, bindAddress->ai_protocol);
+			server->monitors[0].events = POLLIN;
+			server->monitors[0].revents = 0;
+			continue;
 		}
+		server->monitors[i].events = POLLIN;
 	}
 
-	if (next == NULL) {
-		closesocket(waiter);
-		return;
+	if (ioctlsocket(server->monitors[0].fd, FIONBIO, &noBlockMode) == SOCKET_ERROR) {
+		freeaddrinfo(bindAddress);
+		server_destroy(&server);
+		return NULL;
 	}
 
-	printf("Player %i Joined\n", nextId);
-	msg_format(msg, 1, nextId, 
-		float_pack(nextXPos),
-		float_pack(nextYPos));
-	msg_flip(msg);
-	for (int i = 0; i < MAX_PLAYERS; i++)
-		if (clients[i].player != NULL)
-			printf("Telling Player %i that Player %i joined: %i\n", i + 1, nextId, msg_send(msg, &(clients[i].waiter)));
-
-	for (int i = 0; i < MAX_PLAYERS; i++) {
-		if (clients[i].player == NULL)
-			continue;
-
-		unsigned int oldId;
-		float oldXPos;
-		float oldYPos;
-		player_get(clients[i].player, &oldId, &oldXPos, &oldYPos);
-
-		if (oldId == nextId)
-			continue;
-
-		msg_format(msg, 1, oldId, 
-			float_pack(oldXPos), 
-			float_pack(oldYPos));
-		msg_flip(msg);
-		
-		printf("Telling Player %i that Player %i exists: %i\n", nextId, i + 1, msg_send(msg, &(next->waiter)));
+	if (bind(server->monitors[0].fd, bindAddress->ai_addr, (long)bindAddress->ai_addrlen) == SOCKET_ERROR) {
+		freeaddrinfo(bindAddress);
+		server_destroy(&server);
+		return NULL;
 	}
 
-	printf("\n");
+	freeaddrinfo(bindAddress);
 
-	numClients++;
+	if (listen(server->monitors[0].fd, SOMAXCONN) == SOCKET_ERROR) {
+		server_destroy(&server);
+		return NULL;
+	}	
+
+	return server;
 }
 
-void server_sync() {
-	for (int i = 0; i < MAX_PLAYERS; i++) {
-		if (clients[i].player == NULL)
-			continue;
+void server_sync(struct Server* server, unsigned char* numBumpsPtr) {
+	unsigned char numBumps = 0;
+	WSAPoll(server->monitors, 1 + SERVER_MAX, -1);
+	for (unsigned char i = 0; i < 1 + SERVER_MAX; i++) {
+		if (!(server->monitors[i].revents & POLLIN) && !(server->monitors[i].revents & POLLHUP))
+			continue; 
 
-		unsigned int typeActivity = 0;
-		unsigned int idActivity = 0;
-		unsigned int xPosActivity = 0;
-		unsigned int yPosActivity = 0;
-		int numBytes = msg_fetch(msg, &(clients[i].waiter), &typeActivity, &idActivity, &xPosActivity, &yPosActivity);
+		// -1 to exclude the server socket
+		if (i == 0 && server->numPlayers == server->max)
+			closesocket(accept(server->monitors[0].fd, NULL, NULL));
+		else if (i == 0 && server->numPlayers < server->max) {
+			unsigned char nextVacancy = server->longestVacancy->val;
+			struct Spot* recentOccupation = server->longestVacancy;
+			server->longestVacancy = server->longestVacancy->next;
+			free(recentOccupation);
 
-		if (numBytes == 0 ||
-			WSAGetLastError() == 10054) {
+			server->monitors[nextVacancy + 1].fd = accept(server->monitors[0].fd, NULL, NULL);
+			server->monitors[nextVacancy + 1].events = POLLIN;// | POLLHUP;
+			ioctlsocket(server->monitors[nextVacancy + 1].fd, FIONBIO, &noBlockMode);
 
-			printf("Player %i left\n", i + 1);
+			server->bumps[numBumps].id = nextVacancy;
+			server->bumps[numBumps].start = CON_BYTE;
+			server->bumps[numBumps].size = CON_BYTE_SIZE;
+			server->bumps[numBumps].value[CON_BYTE_SIZE - 1] = CON_BYTE_ON;
+			numBumps++;
 
-			closesocket(clients[i].waiter);
-			player_destroy(&(clients[i].player));
-			clients[i].waiter = INVALID_SOCKET;
+			char buf[1];
+			buf[0] = nextVacancy;
+			send(server->monitors[nextVacancy + 1].fd, buf, 1, 0);
 
-			msg_format(msg, 2, i + 1, 0, 0);
-			msg_flip(msg);
-			for (int j = 0; j < MAX_PLAYERS; j++)
-				if (clients[j].player != NULL)
-					printf("Telling Player %i that Player %i left: %i\n", j + 1, i + 1, msg_send(msg, &(clients[j].waiter)));
-
-			printf("\n");
-
-			numClients--;
+			buf[0] = CON_BYTE_ON;
+			server_bump(server, nextVacancy, CON_BYTE, CON_BYTE_SIZE, buf);
+			
+			server->numPlayers++;
 		}
-		else if (typeActivity == 3) {
-
-			printf("Player %i moved\n", i + 1);
-
-			player_place(clients[i].player, float_unpack(xPosActivity), float_unpack(yPosActivity));
-
-			msg_format(msg, typeActivity, idActivity, xPosActivity, yPosActivity);
-			msg_flip(msg);
-			for (int j = 0; j < MAX_PLAYERS; j++) {
-				if (clients[j].player != NULL) {
-					printf("Telling Player %i that Player %i moved: %i\n", j + 1, i + 1, msg_send(msg, &(clients[j].waiter)));
-
-				}
-					
+		else if (server->monitors[i].revents & POLLHUP) {
+			server->shortestVacancy->next = malloc(sizeof(struct Spot));
+			if (server->shortestVacancy->next == NULL) {
+				server_destroy(&server);
+				return;
 			}
-				
-			printf("\n");
+			server->shortestVacancy->next->val = i - 1;
+			server->shortestVacancy = server->shortestVacancy->next;
+
+			server->bumps[numBumps].id = i - 1;
+			server->bumps[numBumps].start = CON_BYTE;
+			server->bumps[numBumps].size = CON_BYTE_SIZE;
+			server->bumps[numBumps].value[CON_BYTE_SIZE - 1] = CON_BYTE_OFF;
+			numBumps++;
+
+			closesocket(server->monitors[i].fd);
+
+			char buf[1];
+			buf[0] = CON_BYTE_OFF;
+			server_bump(server, i - 1, CON_BYTE, CON_BYTE_SIZE, buf);
+		}
+		else if (server->monitors[i].revents & POLLIN) {
+			unsigned short numBytes = recv(server->monitors[i].fd, server->bumps[numBumps].raw, sizeof(union Bump), 0);
+			flip_bytes(server->bumps[numBumps].raw, sizeof(union Bump));
+			numBumps++;
 		}
 	}
+	*numBumpsPtr = numBumps;
 }
 
-void server_stop() {
-	status = 0;
-	numClients = 0;
-	for (int i = 0; i < MAX_PLAYERS; i++) {
-		closesocket(clients[i].waiter);
-		player_destroy(&(clients[i].player));
-		clients[i].waiter = INVALID_SOCKET;
+void server_bump(struct Server* server, unsigned char id, unsigned char start, unsigned char size, unsigned char* val) {
+	for (int i = start, j = 0; i < start + size; i++, j++)
+		server->data[id * PLAYER_SIZE + i] = val[j];
+
+	union Bump bump;
+	bump.id = id;
+	bump.start = start;
+	bump.size = size;
+	for (int i = 0; i < bump.size; i++)
+		bump.value[i] = val[i];
+
+	flip_bytes(bump.raw, sizeof(bump));
+
+	for (int i = 0; i < SERVER_MAX; i++) {
+		if (server->data[i * PLAYER_SIZE] == CON_BYTE_ON && i != id) {
+			// +1 to exclude the server socket
+			send(server->monitors[i + 1].fd, bump.raw, sizeof(bump), 0); 
+		}
 	}
-	closesocket(host);
-	host = INVALID_SOCKET;
-	msg_format(msg, 0, 0, 0, 0);
+	
+	if (start != CON_BYTE)
+		return;
+
+	unsigned char installation[SYNC_SIZE];
+	for (int i = 0; i < SYNC_SIZE; i++) {
+		installation[i] = server->data[i];
+	}
+	flip_bytes(installation, SYNC_SIZE);
+	send(server->monitors[id + 1].fd, installation, SYNC_SIZE, 0);
 }
 
-void server_destroy() {
-	freeaddrinfo(addr);
-	msg_destroy(&msg);
-	WSACleanup();
+void server_destroy(struct Server** server) {
+	for (unsigned char i = 0; i < 1 + SERVER_MAX; i++)
+		closesocket((*server)->monitors->fd);
+	free(*server);
+	*server = NULL;
 }

@@ -1,13 +1,44 @@
-//#include "raylib.h"
-#include "button.h"
-#include "client.h"
-#include "player.h"
+
+//#include "button.h"
+//#include "client.h"
+//#include <stdio.h>
+
 #include <stdio.h>
+
+#include "raylib.h"
+
+#include "wsa.h"
+#include "comms.h"
+#include "client.h"
 
 
 int main() {
+	wsa_create();
+
+	unsigned char* data;
+	struct Client* client = client_create("localhost", "3490", &data);
+
+	SetConfigFlags(FLAG_VSYNC_HINT | FLAG_WINDOW_HIGHDPI);
 	InitWindow(1280, 800, "Hello Raylib");
-	return;
+	while (!(WindowShouldClose())) {
+		BeginDrawing();
+
+		ClearBackground(BLACK);
+
+		client_sync(client);
+		for (int i = 0; i < SERVER_MAX; i++) {
+			if (data[i * PLAYER_SIZE] == CON_BYTE_ON)
+				DrawText(TextFormat("Player %i is Online", i), 0, i * 32, 32, WHITE);
+			else if (data[i * PLAYER_SIZE] == CON_BYTE_OFF)
+				DrawText(TextFormat("Player %i is Offline", i), 0, i * 32, 32, WHITE);
+		}
+
+		EndDrawing();
+	}
+
+	CloseWindow();
+	client_destroy(&client);
+	wsa_destroy();
 
 	/*
 	client_create();

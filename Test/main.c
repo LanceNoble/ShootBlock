@@ -1,6 +1,4 @@
 #define MEM_DEBUG_MODE
-#include "comms.h"
-#include "mem.h"
 
 int main() {
 

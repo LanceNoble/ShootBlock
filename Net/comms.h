@@ -1,31 +1,87 @@
+// ShitNet: a shitty netcode library
+//
+// This was built on some general ideas I had on how multiplayer works.
+// These generalizations don't apply to all games.
+// But they're simple enough for basic netcode.
+// 
+// Cycle:
+// 1. Client A does something
+// 2. Client A pings server they did something
+// 3. Server pings all clients (even Client A) that Client A did something
+// 4. All clients (even Client A) must reflect this event in their game
+//
+// As for what data should be pinged exactly, that should be up to the user.
+// So I looked at the bigger picture:
+// 1. Multiplayer is just the client and server having the same player data.
+// 2. We can think of that data as just a bunch of bytes that the client and server have their own version of
+// 
+// Thus, this library will give the user the tools to give meaning to that bunch of bytes.
+// However, the user will not have full control over all bytes:
+// 1. The library will divide these bytes equally so that every player has an equal amount of bytes
+// 2. The library will be reserve the first byte of every player to represent their connection status
+// 
+// I felt that the user shouldn't control these 2 things for 2 reasons:
+// 1. One player having more bytes than another is unfair and doesn't make sense.
+// 2. ...Why wouldn't you track the connection status of a player...?
+// 
+// Now all that was left to do was put restrictions on 2 more things:
+// 1. The maximum number of players the user could configure a server to house
+// 2. The number of bytes each player will have
+// 
+// This is ShitNet, soooo the user will only be able to make multiplayer games of up to 4 players.
+// And they only have 16 bytes to represent a player.
+//
+// TODO:
+// Oh yeah and there's no functionality for syncing server-wide events (e.g. a zombie spawned)
+// Doesn't make sense to sync that in the player data
+// So for future reference, I was thinking of adding just another buncha bytes dedicated towards those events
+// 
+// Also provide functionality for specifying the operation to perform on the stat
+// (e.g. set equal to? divide? multiply? add? subtract)
+// 
+
 #pragma once
 
-#include <winsock2.h>
-#include <ws2tcpip.h>
+#define SERVER_MAX 4 // Max number of players the user can configure a server can house
+#define PLAYER_SIZE 16 // Number of bytes reserved to represent a player's stats
+#define SYNC_SIZE 64 // SERVER_MAX * PLAYER_SIZE
+#define MAX_STAT_SIZE 4 // Max player stat size
 
-#pragma comment(lib, "Ws2_32.lib")
+// First byte of a player's data is reserved for representing their connection status to the server
+#define CON_BYTE 0
+#define CON_BYTE_SIZE 1
+#define CON_BYTE_OFF 0b00000000
+#define CON_BYTE_ON 0b11111111
 
-#include "mem.h"
+union Meta {
+	struct {
+		unsigned char id : 2;
 
-#define MAX_PLAYERS 4
-#define PORT "3490"
+	};
+};
 
-int wsa_create();
-void flip(char* bytes, const unsigned short sz);
-int wsa_destroy();
+// The message both the server and client will send to each other for syncing
+union Bump {
+	struct {
 
-struct MSG* MSG_create();
-void MSG_set(struct MSG* m, char* buf, const unsigned short sz);
-int MSG_send(struct MSG* m, SOCKET* s);
-int MSG_recv(struct MSG* m, SOCKET* s);
-void MSG_destroy(struct MSG** m);
+		// Server list index of the player to modify the bytes of
+		unsigned char id : 2;
+		
+		// Index of where to start copying data in the player's data bytes
+		unsigned char start : 4;
 
-union Msg* msg_create();
-void msg_format(union Msg* m, unsigned int type, unsigned int id, unsigned int xPos, unsigned int yPos);
-void msg_flip(union Msg* m);
-int msg_send(union Msg* m, SOCKET* s);
-int msg_fetch(union Msg* m, SOCKET* s, unsigned int* type, unsigned int* id, unsigned int* xPos, unsigned int* yPos);
-void msg_destroy(union Msg** m);
+		// Size of data
+		// Any socket sending or receiving this bump must offset this value by +1
+		// This is because a value of 0 can be sent
+		unsigned char size : 2;
 
-unsigned int float_pack(float den);
-float float_unpack(unsigned int bin);
+		// Actual new value of the stat (in bytes)
+		unsigned char value[MAX_STAT_SIZE];
+	};
+
+	unsigned char raw[1 + MAX_STAT_SIZE];
+};
+
+void flip_bytes(char* const bytes, const unsigned short sz);
+short wsa_create();
+unsigned short wsa_destroy();

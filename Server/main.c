@@ -1,20 +1,39 @@
+#include <Windows.h>
 #include <stdio.h>
-//#include <Windows.h>
 
-//#include "server.h"
-#include "mem.h"
+#include "wsa.h"
+#include "comms.h"
+#include "server.h"
 
 int main() {
-	/*
-	server_create();
-	server_start();
+	wsa_create();
+
+	unsigned char* data;
+	union Bump* bumps;
+	struct Server* server = server_create("3490", 4, &data, &bumps);
 
 	while (!(GetAsyncKeyState(VK_END) & 0x01)) {
-		server_greet();
-		server_sync();
+		unsigned char numBumps;
+		server_sync(server, &numBumps);
+		
+		/*
+		for (int i = 0; i < SERVER_MAX; i++) {
+			if (bumps->start == CON_BYTE) {
+				for (int i = 0; i < SERVER_MAX; i++) {
+					printf("Player %i is ", i);
+					if (data[i * PLAYER_SIZE] == CON_BYTE_ON)
+						printf("Online");
+					else if (data[i * PLAYER_SIZE] == CON_BYTE_OFF)
+						printf("Offline");
+					printf("\n");
+				}
+				break;
+			}
+		}
+		*/
+
 	}
 
-	server_stop();
-	server_destroy();
-	*/
+	server_destroy(&server);
+	wsa_destroy();
 }

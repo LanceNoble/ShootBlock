@@ -132,18 +132,16 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="client.c" />
+    <ClCompile Include="comms.c" />
     <ClCompile Include="mem.c" />
-    <ClCompile Include="floatpacker.c" />
-    <ClCompile Include="msg.c" />
-    <ClCompile Include="player.c" />
+    <ClCompile Include="convert.c" />
     <ClCompile Include="server.c" />
-    <ClCompile Include="wsa.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="client.h" />
     <ClInclude Include="comms.h" />
+    <ClInclude Include="convert.h" />
     <ClInclude Include="mem.h" />
-    <ClInclude Include="player.h" />
     <ClInclude Include="server.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

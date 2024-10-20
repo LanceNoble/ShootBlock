@@ -13,27 +13,27 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="Header Files\utils">
+      <UniqueIdentifier>{62aafc27-347f-4e34-ac21-5663b235c2ed}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\utils">
+      <UniqueIdentifier>{4bd38f4d-2552-465f-879b-391e8f6dcfac}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="client.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="floatpacker.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="msg.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="player.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="server.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="wsa.c">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="convert.c">
+      <Filter>Source Files\utils</Filter>
     </ClCompile>
     <ClCompile Include="mem.c">
+      <Filter>Source Files\utils</Filter>
+    </ClCompile>
+    <ClCompile Include="comms.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -41,16 +41,16 @@
     <ClInclude Include="client.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="comms.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="player.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="server.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="convert.h">
+      <Filter>Header Files\utils</Filter>
+    </ClInclude>
     <ClInclude Include="mem.h">
+      <Filter>Header Files\utils</Filter>
+    </ClInclude>
+    <ClInclude Include="comms.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

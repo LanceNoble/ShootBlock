@@ -1,6 +1,4 @@
-#include <math.h>
-
-#include "comms.h"
+#include "convert.h"
 
 // Convert from denary to IEEE 754 binary
 // den - number to convert
@@ -8,7 +6,7 @@
 //
 // Return UNSIGNED int to ensure control over all bits
 // Otherwise, compiler takes control of top bit
-unsigned int float_pack(float den) {
+unsigned long pack_float(float den) {
 
 	// If we don't check to see if den has zero whole parts, this function will run forever
 	// It will cause inaccuracies, but I don't wanna add more code just to differentiate 0.0923 from 0
@@ -94,7 +92,7 @@ unsigned int float_pack(float den) {
 //
 // Take in UNSIGNED int to ensure control over all bits
 // Otherwise, compiler takes control of top bit
-float float_unpack(unsigned int bin) {
+float unpack_float(unsigned long bin) {
 
 	// If this condition isn't checked, the function will return infinity
 	if (bin == 0)
@@ -119,5 +117,16 @@ float float_unpack(unsigned int bin) {
 	if (sign == 1)
 		mantissaDen *= -1;
 
-	return mantissaDen * (float)pow(2, unBiEx);
+	float expander = 1;
+	float factor = 2;
+
+	if (unBiEx < 0) {
+		factor = 1 / 2;
+		unBiEx *= -1;
+	}
+	
+	for (unsigned int i = 0; i < unBiEx; i++)
+		expander *= factor;
+
+	return mantissaDen * expander;
 }
