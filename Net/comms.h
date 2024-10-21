@@ -54,8 +54,6 @@
 #define CON_BYTE_ON 0b11111111
 
 // The message the client will receive from the server upon joining
-// The only real useful bits in this message as of now are the "you" bits
-// But I just feel like padding out the rest of the buffer with something
 union Meta {
 	struct {
 		
@@ -95,6 +93,6 @@ union Bump {
 	unsigned char raw[1 + MAX_STAT_SIZE];
 };
 
-void flip_bytes(char* const bytes, const unsigned short sz);
+void flip_bytes(unsigned char* const bytes, const unsigned short sz);
 short wsa_create();
 unsigned short wsa_destroy();

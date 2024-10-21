@@ -7,7 +7,6 @@
 
 #include "raylib.h"
 
-#include "wsa.h"
 #include "comms.h"
 #include "client.h"
 
@@ -16,7 +15,8 @@ int main() {
 	wsa_create();
 
 	unsigned char* data;
-	struct Client* client = client_create("localhost", "3490", &data);
+	union Meta info;
+	struct Client* client = client_create("localhost", "3490", &data, &info);
 
 	SetConfigFlags(FLAG_VSYNC_HINT | FLAG_WINDOW_HIGHDPI);
 	InitWindow(1280, 800, "Hello Raylib");
@@ -26,11 +26,15 @@ int main() {
 		ClearBackground(BLACK);
 
 		client_sync(client);
-		for (int i = 0; i < SERVER_MAX; i++) {
-			if (data[i * PLAYER_SIZE] == CON_BYTE_ON)
+		for (int i = 0; i < info.max; i++) {
+			if (data[i * info.size] == CON_BYTE_ON) {
 				DrawText(TextFormat("Player %i is Online", i), 0, i * 32, 32, WHITE);
-			else if (data[i * PLAYER_SIZE] == CON_BYTE_OFF)
+			}
+				
+			else if (data[i * info.size] == CON_BYTE_OFF) {
 				DrawText(TextFormat("Player %i is Offline", i), 0, i * 32, 32, WHITE);
+			}
+				
 		}
 
 		EndDrawing();

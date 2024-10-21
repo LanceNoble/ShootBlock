@@ -6,30 +6,40 @@
 #include "comms.h"
 
 struct Client { 
-	SOCKET socket;
-	unsigned char you[1];
-	unsigned char data[SYNC_SIZE];
+	SOCKET line;
+	union Meta* info;
+	union Bump* bump;
+	unsigned char* data;
 };
 
-struct Client* client_create(const char *const ip, const char *const port, unsigned char** data) {
+struct Client* client_create(const char *const ip, const char *const port, unsigned char** data, union Meta* info) {
 	struct Client* client = malloc(sizeof(struct Client));
 	if (client == NULL)
 		return NULL;
+
+	client->line = INVALID_SOCKET;
+	client->info = NULL;
+	client->bump = NULL;
+	client->data = NULL;
+	client->bump = malloc(sizeof(union Bump));
+	if (client->bump == NULL) {
+		client_destroy(&client);
+		return NULL;
+	}
 
 	struct addrinfo hints;
 	ZeroMemory(&hints, sizeof(hints));
 	hints.ai_family = AF_INET;
 	hints.ai_socktype = SOCK_STREAM;
 	hints.ai_protocol = IPPROTO_TCP;
-
 	struct addrinfo* serverAddress;
 	if (getaddrinfo(ip, port, &hints, &serverAddress) != 0) {
 		client_destroy(&client);
 		return NULL;
 	}
 
-	client->socket = socket(serverAddress->ai_family, serverAddress->ai_socktype, serverAddress->ai_protocol);
-	if (connect(client->socket, serverAddress->ai_addr, (long)serverAddress->ai_addrlen) == SOCKET_ERROR) {
+	client->line = socket(serverAddress->ai_family, serverAddress->ai_socktype, serverAddress->ai_protocol);
+	if (connect(client->line, serverAddress->ai_addr, (long)serverAddress->ai_addrlen) == SOCKET_ERROR) {
 		freeaddrinfo(serverAddress);
 		client_destroy(&client);
 		return NULL;
@@ -37,73 +47,68 @@ struct Client* client_create(const char *const ip, const char *const port, unsig
 
 	freeaddrinfo(serverAddress);
 
-	// This is where the client either get's a message telling them which player in the server they are
-	// Or they get kicked because the server's full
-	unsigned short numBytes = recv(client->socket, client->you, 1, 0);
-	unsigned long blockMode = 1;
-	if (numBytes == 0 || numBytes == SOCKET_ERROR || ioctlsocket(client->socket, FIONBIO, &blockMode) == SOCKET_ERROR) {
+	client->info = malloc(sizeof(union Meta));
+	if (client->info == NULL) {
 		client_destroy(&client);
 		return NULL;
 	}
 
-	for (int i = 0; i < SERVER_MAX; i++)
-		client->data[i * PLAYER_SIZE] = CON_BYTE_OFF;
+	short joinRes = recv(client->line, client->info->raw, sizeof(union Meta), 0);
+	unsigned long blockMode = 1;
+	if (joinRes == 0 || joinRes == SOCKET_ERROR) {
+		client_destroy(&client);
+		return NULL;
+	}
 
+	client->data = malloc(sizeof(unsigned char) * client->info->max * client->info->size);
+	if (client->data == NULL) {
+		client_destroy(&client);
+		return NULL;
+	}
+
+	short installRes = recv(client->line, client->data, client->info->max * client->info->size, 0);
+	flip_bytes(client->data, client->info->max * client->info->size);
 	*data = client->data;
+	*info = *(client->info);
+	ioctlsocket(client->line, FIONBIO, &blockMode);
 	return client;
 }
 
-unsigned short client_sync(struct Client* client) {
-	unsigned char buf[SYNC_SIZE];
-	short numBytes = recv(client->socket, buf, SYNC_SIZE, 0);
+void client_bump(struct Client* client, unsigned char id, unsigned char start, unsigned char size, unsigned char* val) {
+	client->bump->id = id;
+	client->bump->start = start;
+	client->bump->size = size;
+	for (int i = 0; i < client->bump->size; i++)
+		client->bump->value[i] = val[i];
 
-	if (numBytes == 0 || WSAGetLastError() == 10053) {
-		client_destroy(&client);
-		return 420;
-	}
-
-	if (numBytes == SOCKET_ERROR) {
-		return 420;
-	}
-
-	if (numBytes == SYNC_SIZE) {
-		flip_bytes(buf, SYNC_SIZE);
-		for (int i = 0; i < SYNC_SIZE; i++) {
-			client->data[i] = buf[i];
-		}
-		return numBytes;
-	}
-	
-	flip_bytes(buf, SYNC_SIZE);
-	union Bump bump;
-	for (int i = 59, j = 0; i < 64; i++, j++) {
-		bump.raw[j] = buf[i];
-	}
-
-	for (int i = bump.start, j = 0; i < bump.start + (bump.size); i++, j++)
-		client->data[bump.id * PLAYER_SIZE + i] = bump.value[j];
-
-	return numBytes;
+	flip_bytes(client->bump->raw, sizeof(union Bump));
+	send(client->line, client->bump->raw, sizeof(union Bump), 0);
 }
 
-unsigned short client_bump(struct Client* client, unsigned char start, unsigned char size, unsigned char* val) {
-	if (start == CON_BYTE)
-		return -420;
+void client_sync(struct Client* client) {
+	short numBytes = recv(client->line, client->bump->raw, sizeof(union Bump), 0);
+	if (numBytes == 0 || WSAGetLastError() == 10053) {
+		client_destroy(&client);
+		return;
+	}
+	if (numBytes == SOCKET_ERROR) {
+		return;
+	}
 
-	union Bump bump;
-	bump.id = client->you[0];
-	bump.start = start;
-	bump.size = size;
-	for (int i = 0; i < (bump.size); i++)
-		bump.value[i] = val[i];
-
-	flip_bytes(bump.raw, sizeof(bump));
-
-	return send(client->socket, bump.raw, sizeof(bump), 0);
+	flip_bytes(client->bump->raw, sizeof(union Bump));
+	for (int i = client->bump->start, j = 0; i < client->bump->start + client->bump->size; i++, j++) {
+		client->data[client->bump->id * client->info->size + i] = client->bump->value[j];
+	}
 }
 
 void client_destroy(struct Client** client) {
-	closesocket((*client)->socket);
+	closesocket((*client)->line);
+	free((*client)->data);
+	(*client)->data = NULL;
+	free((*client)->info);
+	(*client)->info = NULL;
+	free((*client)->bump);
+	(*client)->bump = NULL;
 	free(*client);
 	*client = NULL;
 }

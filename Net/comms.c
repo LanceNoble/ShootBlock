@@ -12,7 +12,7 @@ enum End {
 static enum End end = UNKNOWN;
 static WSADATA* wsaData;
 
-void flip_bytes(char* const bytes, const unsigned short sz) {
+void flip_bytes(unsigned char* const bytes, const unsigned short sz) {
 	if (end == UNKNOWN) {
 		unsigned short endTest = 0x1234;
 		unsigned char* firstByte = (unsigned char*)(&endTest);
