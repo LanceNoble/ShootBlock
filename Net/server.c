@@ -167,7 +167,7 @@ void server_relay(struct Server* server) {
 		}
 		else if (server->monitors[i].revents & POLLIN) {
 			unsigned short numBytes = recv(server->monitors[i].fd, server->bumps[numBumps].raw, sizeof(union Bump), 0);
-			flip_bytes(server->bumps[numBumps].raw, sizeof(union Bump));
+			flip(server->bumps[numBumps].raw, sizeof(union Bump));
 			numBumps++;
 		}
 	}
@@ -183,7 +183,7 @@ void server_relay(struct Server* server) {
 		for (unsigned char j = 0; j < MAX_STAT_SIZE; j++) {
 			bumpCopy.value[j] = server->bumps[i].value[j];
 		}
-		flip_bytes(bumpCopy.raw, sizeof(union Bump));
+		flip(bumpCopy.raw, sizeof(union Bump));
 		for (unsigned char j = 0; j < server->max; j++) {
 			if (server->data[j * server->size] == CON_BYTE_ON && j != server->bumps[i].id) {
 				// +1 to exclude the server socket
@@ -201,7 +201,7 @@ void server_relay(struct Server* server) {
 		for (unsigned char j = 0; j < server->max * server->size; j++) {
 			installation[j] = server->data[j];
 		}
-		flip_bytes(installation, server->max * server->size);
+		flip(installation, server->max * server->size);
 		send(server->monitors[server->bumps[i].id + 1].fd, installation, server->max * server->size, 0);
 		free(installation);
 	}

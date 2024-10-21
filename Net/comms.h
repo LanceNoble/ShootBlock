@@ -93,6 +93,6 @@ union Bump {
 	unsigned char raw[1 + MAX_STAT_SIZE];
 };
 
-void flip_bytes(unsigned char* const bytes, const unsigned short sz);
+void flip(unsigned char* const bytes, const unsigned short sz);
 short wsa_create();
 unsigned short wsa_destroy();

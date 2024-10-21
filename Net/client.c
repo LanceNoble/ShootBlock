@@ -67,7 +67,7 @@ struct Client* client_create(const char *const ip, const char *const port, unsig
 	}
 
 	short installRes = recv(client->line, client->data, client->info->max * client->info->size, 0);
-	flip_bytes(client->data, client->info->max * client->info->size);
+	flip(client->data, client->info->max * client->info->size);
 	*data = client->data;
 	*info = *(client->info);
 	ioctlsocket(client->line, FIONBIO, &blockMode);
@@ -81,7 +81,7 @@ void client_bump(struct Client* client, unsigned char id, unsigned char start, u
 	for (int i = 0; i < client->bump->size; i++)
 		client->bump->value[i] = val[i];
 
-	flip_bytes(client->bump->raw, sizeof(union Bump));
+	flip(client->bump->raw, sizeof(union Bump));
 	send(client->line, client->bump->raw, sizeof(union Bump), 0);
 }
 
@@ -95,7 +95,7 @@ void client_sync(struct Client* client) {
 		return;
 	}
 
-	flip_bytes(client->bump->raw, sizeof(union Bump));
+	flip(client->bump->raw, sizeof(union Bump));
 	for (int i = client->bump->start, j = 0; i < client->bump->start + client->bump->size; i++, j++) {
 		client->data[client->bump->id * client->info->size + i] = client->bump->value[j];
 	}
