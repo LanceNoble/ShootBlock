@@ -6,7 +6,8 @@
 #include "comms.h"
 
 struct Client { 
-	SOCKET line;
+	SOCKET tcp;
+	SOCKET udp;
 	union Meta* info;
 	union Bump* bump;
 	unsigned char* data;
@@ -17,7 +18,9 @@ struct Client* client_create(const char *const ip, const char *const port, unsig
 	if (client == NULL)
 		return NULL;
 
-	client->line = INVALID_SOCKET;
+	client->tcp = INVALID_SOCKET;
+
+
 	client->info = NULL;
 	client->bump = NULL;
 	client->data = NULL;
@@ -32,20 +35,20 @@ struct Client* client_create(const char *const ip, const char *const port, unsig
 	hints.ai_family = AF_INET;
 	hints.ai_socktype = SOCK_STREAM;
 	hints.ai_protocol = IPPROTO_TCP;
-	struct addrinfo* serverAddress;
-	if (getaddrinfo(ip, port, &hints, &serverAddress) != 0) {
+	struct addrinfo* tcpAddr;
+	if (getaddrinfo(ip, port, &hints, &tcpAddr) != 0) {
 		client_destroy(&client);
 		return NULL;
 	}
 
-	client->line = socket(serverAddress->ai_family, serverAddress->ai_socktype, serverAddress->ai_protocol);
-	if (connect(client->line, serverAddress->ai_addr, (long)serverAddress->ai_addrlen) == SOCKET_ERROR) {
-		freeaddrinfo(serverAddress);
+	client->tcp = socket(tcpAddr->ai_family, tcpAddr->ai_socktype, tcpAddr->ai_protocol);
+	if (connect(client->tcp, tcpAddr->ai_addr, (long)tcpAddr->ai_addrlen) == SOCKET_ERROR) {
+		freeaddrinfo(tcpAddr);
 		client_destroy(&client);
 		return NULL;
 	}
 
-	freeaddrinfo(serverAddress);
+	freeaddrinfo(tcpAddr);
 
 	client->info = malloc(sizeof(union Meta));
 	if (client->info == NULL) {
@@ -53,7 +56,7 @@ struct Client* client_create(const char *const ip, const char *const port, unsig
 		return NULL;
 	}
 
-	short joinRes = recv(client->line, client->info->raw, sizeof(union Meta), 0);
+	short joinRes = recv(client->tcp, client->info->raw, sizeof(union Meta), 0);
 	unsigned long blockMode = 1;
 	if (joinRes == 0 || joinRes == SOCKET_ERROR) {
 		client_destroy(&client);
@@ -66,11 +69,11 @@ struct Client* client_create(const char *const ip, const char *const port, unsig
 		return NULL;
 	}
 
-	short installRes = recv(client->line, client->data, client->info->max * client->info->size, 0);
+	short installRes = recv(client->tcp, client->data, client->info->max * client->info->size, 0);
 	flip(client->data, client->info->max * client->info->size);
 	*data = client->data;
 	*info = *(client->info);
-	ioctlsocket(client->line, FIONBIO, &blockMode);
+	ioctlsocket(client->tcp, FIONBIO, &blockMode);
 	return client;
 }
 
@@ -82,11 +85,11 @@ void client_bump(struct Client* client, unsigned char id, unsigned char start, u
 		client->bump->value[i] = val[i];
 
 	flip(client->bump->raw, sizeof(union Bump));
-	send(client->line, client->bump->raw, sizeof(union Bump), 0);
+	send(client->tcp, client->bump->raw, sizeof(union Bump), 0);
 }
 
 void client_sync(struct Client* client) {
-	short numBytes = recv(client->line, client->bump->raw, sizeof(union Bump), 0);
+	short numBytes = recv(client->tcp, client->bump->raw, sizeof(union Bump), 0);
 	if (numBytes == 0 || WSAGetLastError() == 10053) {
 		client_destroy(&client);
 		return;
@@ -102,7 +105,7 @@ void client_sync(struct Client* client) {
 }
 
 void client_destroy(struct Client** client) {
-	closesocket((*client)->line);
+	closesocket((*client)->tcp);
 	free((*client)->data);
 	(*client)->data = NULL;
 	free((*client)->info);
