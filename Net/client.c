@@ -8,6 +8,7 @@
 struct Client { 
 	SOCKET tcp;
 	SOCKET udp;
+	struct addrinfo* udpAddr;
 	union Meta* info;
 	union Bump* bump;
 	unsigned char* data;
@@ -18,9 +19,40 @@ struct Client* client_create(const char *const ip, const char *const port, unsig
 	if (client == NULL)
 		return NULL;
 
+	struct addrinfo hints;
+	ZeroMemory(&hints, sizeof(hints));
+	hints.ai_family = AF_INET;
+
+	hints.ai_socktype = SOCK_STREAM;
+	hints.ai_protocol = IPPROTO_TCP;
+	struct addrinfo* tcpAddr;
+	if (getaddrinfo(ip, port, &hints, &tcpAddr) != 0) {
+		client_destroy(&client);
+		return NULL;
+	}
+	client->tcp = socket(tcpAddr->ai_family, tcpAddr->ai_socktype, tcpAddr->ai_protocol);
+	if (connect(client->tcp, tcpAddr->ai_addr, (long)tcpAddr->ai_addrlen) == SOCKET_ERROR) {
+		freeaddrinfo(tcpAddr);
+		client_destroy(&client);
+		return NULL;
+	}
+	freeaddrinfo(tcpAddr);
+
+
+	hints.ai_socktype = SOCK_DGRAM;
+	hints.ai_protocol = IPPROTO_UDP;
+	if (getaddrinfo(ip, port, &hints, &(client->udpAddr)) != 0) {
+		client_destroy(&client);
+		return NULL;
+	}
+	client->udp = socket(client->udpAddr->ai_family, client->udpAddr->ai_socktype, client->udpAddr->ai_protocol);
+	if (client->udp == INVALID_SOCKET) {
+		client_destroy(&client);
+		return NULL;
+	}
+
+
 	client->tcp = INVALID_SOCKET;
-
-
 	client->info = NULL;
 	client->bump = NULL;
 	client->data = NULL;
@@ -30,25 +62,6 @@ struct Client* client_create(const char *const ip, const char *const port, unsig
 		return NULL;
 	}
 
-	struct addrinfo hints;
-	ZeroMemory(&hints, sizeof(hints));
-	hints.ai_family = AF_INET;
-	hints.ai_socktype = SOCK_STREAM;
-	hints.ai_protocol = IPPROTO_TCP;
-	struct addrinfo* tcpAddr;
-	if (getaddrinfo(ip, port, &hints, &tcpAddr) != 0) {
-		client_destroy(&client);
-		return NULL;
-	}
-
-	client->tcp = socket(tcpAddr->ai_family, tcpAddr->ai_socktype, tcpAddr->ai_protocol);
-	if (connect(client->tcp, tcpAddr->ai_addr, (long)tcpAddr->ai_addrlen) == SOCKET_ERROR) {
-		freeaddrinfo(tcpAddr);
-		client_destroy(&client);
-		return NULL;
-	}
-
-	freeaddrinfo(tcpAddr);
 
 	client->info = malloc(sizeof(union Meta));
 	if (client->info == NULL) {
