@@ -45,7 +45,7 @@
 #define SERVER_MAX 4 // Max number of players the user can configure a server can house
 #define PLAYER_SIZE 16 // Number of bytes reserved to represent a player's stats
 #define SYNC_SIZE 64 // SERVER_MAX * PLAYER_SIZE
-#define MAX_STAT_SIZE 4 // Max player stat size
+#define MAX_UPDATE_SIZE 4 // Max player stat size
 
 // First byte of a player's data is reserved for representing their connection status to the server
 #define CON_BYTE 0
@@ -66,7 +66,7 @@ union Meta {
 
 		// How many bytes this server is using to represent a player
 		// Recipients must offset this value by +1 since a value of 0 can be sent
-		unsigned char size : 4;
+		unsigned char sz : 4;
 	};
 
 	unsigned char raw[1];
@@ -76,21 +76,28 @@ union Meta {
 union Bump {
 	struct {
 
+		unsigned long seq : 24;
+
 		// Server list index of the player to modify the bytes of
-		unsigned char id : 2;
-		
+		unsigned long id : 2;
+
 		// Index of where to start copying data in the player's data bytes
-		unsigned char start : 4;
+		unsigned long st : 4;
 
 		// Size of data
 		// Recipients must offset this value by +1 since a value of 0 can be sent
-		unsigned char size : 2;
+		unsigned long sz : 2;
 
 		// Actual new value of the stat (in bytes)
-		unsigned char value[MAX_STAT_SIZE];
+		unsigned char val[MAX_UPDATE_SIZE];
 	};
 
-	unsigned char raw[1 + MAX_STAT_SIZE];
+	unsigned char raw[4 + MAX_UPDATE_SIZE];
+};
+
+struct Action {
+	union Bump bump;
+	struct Action* next;
 };
 
 void flip(unsigned char* const bytes, const unsigned short sz);

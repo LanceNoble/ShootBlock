@@ -27,11 +27,11 @@ int main() {
 
 		client_sync(client);
 		for (int i = 0; i < info.max; i++) {
-			if (data[i * info.size] == CON_BYTE_ON) {
+			if (data[i * info.sz] == CON_BYTE_ON) {
 				DrawText(TextFormat("Player %i is Online", i), 0, i * 32, 32, WHITE);
 			}
 				
-			else if (data[i * info.size] == CON_BYTE_OFF) {
+			else if (data[i * info.sz] == CON_BYTE_OFF) {
 				DrawText(TextFormat("Player %i is Offline", i), 0, i * 32, 32, WHITE);
 			}
 				
