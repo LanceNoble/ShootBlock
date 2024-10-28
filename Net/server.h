@@ -1,5 +1,6 @@
 #pragma once
 
-struct Server* server_create(unsigned char max, unsigned char size, const char* const port);
-void server_relay(struct Server* server);
+struct Server* server_create(unsigned short port);
+void server_sync(struct Server* server);
+void server_ping(struct Server* server);
 void server_destroy(struct Server** server);

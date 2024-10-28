@@ -1,251 +1,179 @@
 #include "server.h"
 
 #include <winsock2.h>
-#include <ws2tcpip.h>
+#include <time.h>
+#include <stdio.h>
 
 #include "comms.h"
 
-struct Player {
-	struct sockaddr udpAddr;
-
-	unsigned long seq;
-	struct Action* firstAct;
-	struct Action* lastAct;
-};
+#define PLAYERMAX 2
 
 struct Spot {
-	unsigned char val;
+	unsigned long val;
 	struct Spot* next;
 };
 
+struct Host {
+	struct sockaddr_in addr;
+	unsigned long elapse;
+};
+
 struct Server {
-	unsigned char max;
-	unsigned char size;
-	unsigned char numPlayers;
-
-	unsigned char* data;
-	struct Player** players;
-	struct pollfd* monitors;
-	//union Bump* bumps;
-
+	SOCKET udp;
+	struct Host players[PLAYERMAX];
+	unsigned char numOn;
 	struct Spot* firstOpen;
 	struct Spot* lastOpen;
 };
 
-static unsigned long noBlockMode = 1;
-
-struct Server* server_create(unsigned char max, unsigned char size, const char* const port) {
+struct Server* server_create(unsigned short port) {
 	struct Server* server = malloc(sizeof(struct Server));
 	if (server == NULL)
 		return NULL;
 
-	server->max = max;
-	server->size = size;
-	server->numPlayers = 0;
-
-	server->data = malloc(sizeof(unsigned char) * (4 + (server->max * server->size)));
-	if (server->data == NULL) {
-		server_destroy(&server);
-		return NULL;
-	}
-	for (int i = 0; i < server->max; i++) {
-		server->data[4 + (i * server->size)] = CON_BYTE_OFF;
-	}
-
-	server->players = malloc(sizeof(struct Player*) * server->max);
-	for (unsigned char i; i < server->max; i++) {
-		server->players[i] = NULL;
-	}
-
-	server->monitors = malloc(sizeof(struct pollfd) * (2 + server->max));
-	if (server->monitors == NULL) {
-		server_destroy(&server);
-		return NULL;
-	}
-
-	/*
-	server->bumps = malloc(sizeof(union Bump) * server->max);
-	if (server->bumps == NULL) {
-		server_destroy(&server);
-		return NULL;
-	}
-	*/
-	
+	server->numOn = 0;
 	server->firstOpen = malloc(sizeof(struct Spot));
 	if (server->firstOpen == NULL) {
 		server_destroy(&server);
 		return NULL;
 	}
-	server->firstOpen->val = 0;
 	server->lastOpen = server->firstOpen;
-	for (int i = 1; i < server->max; i++) {
+	for (unsigned char i = 0; i < PLAYERMAX; i++) {
+		server->players[i].elapse = 0;
+
+		server->lastOpen->val = i;
+		if (i == PLAYERMAX - 1) {
+			server->lastOpen->next = NULL;
+			break;
+		}
+
 		server->lastOpen->next = malloc(sizeof(struct Spot));
+		
 		if (server->lastOpen->next == NULL) {
 			server_destroy(&server);
 			return NULL;
 		}
-		server->lastOpen->next->val = i;
 		server->lastOpen = server->lastOpen->next;
 	}
-	server->lastOpen->next = NULL;
+
+	server->udp = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+	struct sockaddr_in addrBind;
+	addrBind.sin_family = AF_INET;
+	addrBind.sin_addr.S_un.S_addr = INADDR_ANY;
+	addrBind.sin_port = htons(port);
+
+	if (bind(server->udp, (struct sockaddr*)&addrBind, sizeof(struct sockaddr)) == SOCKET_ERROR) {
+		printf("failed to bind socket\n");
+		server_destroy(&server);
+		return NULL;
+	}
 	
-	struct addrinfo hints;
-	ZeroMemory(&hints, sizeof(hints));
-	hints.ai_family = AF_INET;
-	hints.ai_socktype = SOCK_STREAM;
-	hints.ai_protocol = IPPROTO_TCP;
-	hints.ai_flags = AI_PASSIVE;
-
-	struct addrinfo* bindAddress;
-	if (getaddrinfo(NULL, port, &hints, &bindAddress) != 0) {
-		server_destroy(&server);
-		return NULL;
-	}
-
-	for (int i = 0; i < 1 + server->max; i++) {
-		if (i == 0) {
-			server->monitors[0].fd = socket(bindAddress->ai_family, bindAddress->ai_socktype, bindAddress->ai_protocol);
-			server->monitors[0].revents = 0;
-		}
-		server->monitors[i].events = POLLIN;
-	}
-
-	if (ioctlsocket(server->monitors[0].fd, FIONBIO, &noBlockMode) == SOCKET_ERROR) {
-		freeaddrinfo(bindAddress);
-		server_destroy(&server);
-		return NULL;
-	}
-
-	if (bind(server->monitors[0].fd, bindAddress->ai_addr, (long)bindAddress->ai_addrlen) == SOCKET_ERROR) {
-		freeaddrinfo(bindAddress);
-		server_destroy(&server);
-		return NULL;
-	}
-
-	freeaddrinfo(bindAddress);
-
-	if (listen(server->monitors[0].fd, SOMAXCONN) == SOCKET_ERROR) {
-		server_destroy(&server);
-		return NULL;
-	}	
+	unsigned long blockMode = 1;
+	ioctlsocket(server->udp, FIONBIO, &blockMode);
 
 	return server;
 }
 
-void server_relay(struct Server* server) {
-	// unsigned char numBumps = 0;
-	WSAPoll(server->monitors, 1 + server->max, -1);
-	for (unsigned char i = 0; i < 1 + server->max; i++) {
-		if (!(server->monitors[i].revents & POLLIN) && !(server->monitors[i].revents & POLLHUP)) {
+void server_sync(struct Server* server) {
+	if (server == NULL) {
+		return;
+	}
+
+	for (unsigned char i = 0; i < PLAYERMAX; i++) {
+		if (server->players[i].elapse == 0) {
 			continue;
 		}
-
-		// -1 to exclude the server socket
-		if (i == 0 && server->numPlayers == server->max) {
-			closesocket(accept(server->monitors[0].fd, NULL, NULL));
-		}
-		else if (i == 0 && server->numPlayers < server->max) {
-			unsigned char nextVacancy = server->firstOpen->val;
-			struct Spot* recentOccupation = server->firstOpen;
-			server->firstOpen = server->firstOpen->next;
-			free(recentOccupation);
-
-			server->monitors[nextVacancy + 1].fd = accept(server->monitors[0].fd, NULL, NULL);
-			ioctlsocket(server->monitors[nextVacancy + 1].fd, FIONBIO, &noBlockMode);
-
-			server->bumps[numBumps].id = nextVacancy;
-			server->bumps[numBumps].st = CON_BYTE;
-			server->bumps[numBumps].sz = CON_BYTE_SIZE;
-			server->bumps[numBumps].val[CON_BYTE_SIZE - 1] = CON_BYTE_ON;
-			numBumps++;
-
-			union Meta meta;
-			meta.max = server->max;
-			meta.sz = server->size;
-			meta.you = nextVacancy;
-			send(server->monitors[nextVacancy + 1].fd, meta.raw, sizeof(union Meta), 0);
-			
-			server->numPlayers++;
-		}
-		else if (server->monitors[i].revents & POLLHUP) {
-			server->lastOpen->next = malloc(sizeof(struct Spot));
-			if (server->lastOpen->next == NULL) {
+		if ((clock() - server->players[i].elapse) / (double)CLOCKS_PER_SEC >= TIMEOUT) {
+			printf("Player left\n");
+			server->players[i].elapse = 0;
+			struct Spot* temp = malloc(sizeof(struct Spot));
+			if (temp == NULL) {
 				server_destroy(&server);
 				return;
 			}
-			server->lastOpen->next->val = i - 1;
-			server->lastOpen = server->lastOpen->next;
-
-			server->bumps[numBumps].id = i - 1;
-			server->bumps[numBumps].st = CON_BYTE;
-			server->bumps[numBumps].sz = CON_BYTE_SIZE;
-			server->bumps[numBumps].val[CON_BYTE_SIZE - 1] = CON_BYTE_OFF;
-			numBumps++;
-
-			closesocket(server->monitors[i].fd);
-			server->monitors[i].fd = INVALID_SOCKET;
-
-			server->numPlayers--;
-		}
-		else if (server->monitors[i].revents & POLLIN) {
-			unsigned short numBytes = recv(server->monitors[i].fd, server->bumps[numBumps].raw, sizeof(union Bump), 0);
-			flip(server->bumps[numBumps].raw, sizeof(union Bump));
-			numBumps++;
+			temp->val = i;
+			temp->next = NULL;
+			if (server->firstOpen == NULL) {
+				server->firstOpen = temp;
+				server->lastOpen = server->firstOpen;
+			}
+			else if (server->lastOpen != NULL) {
+				server->lastOpen->next = temp;
+			}
+			server->numOn--;
 		}
 	}
 
-	for (unsigned char i = 0; i < numBumps; i++) {
-		for (unsigned char j = server->bumps[i].st, k = 0; j < server->bumps[i].st + server->bumps[i].sz; j++, k++) {
-			server->data[server->bumps[i].id * server->size + j] = server->bumps[i].val[k];
+	union Data from;
+	struct sockaddr_in fromAddr;
+	unsigned long fromAddrLen = sizeof(struct sockaddr);
+	short numBytes = recvfrom(server->udp, from.raw, (unsigned long)sizeof(union Data), 0, (struct sockaddr*)&fromAddr, &fromAddrLen);
+	if (numBytes == SOCKET_ERROR) {
+		numBytes = WSAGetLastError();
+		return;
+	}
+
+	flip(from.raw, sizeof(union Data));
+	if (from.pid != PID) {
+		return;
+	}
+
+	unsigned char i = 0;
+	while (i < PLAYERMAX) {
+		if (server->players[i].addr.sin_addr.S_un.S_addr == fromAddr.sin_addr.S_un.S_addr && 
+			server->players[i].addr.sin_port == fromAddr.sin_port &&
+			server->players[i].elapse != 0) {
+			break;
 		}
-		union Bump bumpCopy;
-		bumpCopy.id = server->bumps[i].id;
-		bumpCopy.st = server->bumps[i].st;
-		bumpCopy.sz = server->bumps[i].sz;
-		for (unsigned char j = 0; j < MAX_UPDATE_SIZE; j++) {
-			bumpCopy.val[j] = server->bumps[i].val[j];
-		}
-		flip(bumpCopy.raw, sizeof(union Bump));
-		for (unsigned char j = 0; j < server->max; j++) {
-			if (server->data[j * server->size] == CON_BYTE_ON && j != server->bumps[i].id) {
-				// +1 to exclude the server socket
-				send(server->monitors[j + 1].fd, bumpCopy.raw, sizeof(union Bump), 0);
-			}
-		}
-		if (server->bumps[i].st != CON_BYTE) {
+		i++;
+	}
+	if (i == PLAYERMAX && server->numOn < PLAYERMAX) {
+		printf("Player joined\n");
+		server->players[server->firstOpen->val].addr = fromAddr;
+		server->players[server->firstOpen->val].elapse = clock();
+
+		struct Spot* recentOccupation = server->firstOpen;
+		server->firstOpen = server->firstOpen->next;
+		free(recentOccupation);
+		
+		server->numOn++;
+		return;
+	}
+
+	if (i == PLAYERMAX) {
+		return;
+	}
+
+	server->players[i].elapse = clock();
+}
+
+void server_ping(struct Server* server) {
+	if (server == NULL) {
+		return;
+	}
+
+	union Data data;
+	data.pid = PID;
+	flip(data.raw, sizeof(union Data));
+	for (unsigned char i = 0; i < PLAYERMAX; i++) {
+		if (server->players[i].elapse == 0) {
 			continue;
 		}
-		unsigned char* installation = malloc(sizeof(unsigned char) * server->max * server->size);
-		if (installation == NULL) {
-			server_destroy(&server);
-			return;
-		}
-		for (unsigned char j = 0; j < server->max * server->size; j++) {
-			installation[j] = server->data[j];
-		}
-		flip(installation, server->max * server->size);
-		send(server->monitors[server->bumps[i].id + 1].fd, installation, server->max * server->size, 0);
-		free(installation);
+		sendto(server->udp, data.raw, sizeof(union Data), 0, (struct sockaddr*)&server->players[i].addr, sizeof(struct sockaddr));
 	}
 }
 
-static void free_linked(struct Spot* s) {
-	if (s == NULL)
+static void spots_destroy(struct Spot** head) {
+	if (*head == NULL) {
 		return;
-	free_linked(s->next);
-	free(s);
+	}
+	spots_destroy(&((*head)->next));
+	free(*head);
+	*head = NULL;
 }
 
 void server_destroy(struct Server** server) {
-	for (unsigned char i = 0; i < 1 + SERVER_MAX; i++)
-		closesocket((*server)->monitors->fd);
-	free((*server)->data);
-	(*server)->data = NULL;
-	free((*server)->monitors);
-	(*server)->monitors = NULL;
-	free((*server)->bumps);
-	(*server)->bumps = NULL;
-	free_linked((*server)->firstOpen);
+	spots_destroy(&((*server)->firstOpen));
 	free(*server);
 	*server = NULL;
 }
