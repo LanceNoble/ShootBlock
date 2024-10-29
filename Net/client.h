@@ -1,6 +1,6 @@
 #pragma once
 
-struct Client* client_create(unsigned long byte0, unsigned long byte1, unsigned long byte2, unsigned long byte3, unsigned short port);
-void client_ping(struct Client* client);
-void client_sync(struct Client* client);
+short client_create(unsigned char b0, unsigned char b1, unsigned char b2, unsigned char b3, unsigned short port, struct Client** client);
+short client_ping(struct Client* client);
+short client_sync(struct Client* client);
 void client_destroy(struct Client** client);

@@ -12,12 +12,9 @@ enum End {
 static enum End end = UNKNOWN;
 static WSADATA* wsaData;
 
-// Reverse a contiguous set of bytes for sending and receiving network data
-// Does not check to see if the bytes have already been flipped
-void flip(unsigned char* const bytes, const unsigned short sz) {
-	if (sz == 1) {
-		return;
-	}
+// Reverse a contiguous set of bytes
+// Does not check to see if the bytes have already been flipped 
+void flip(unsigned char* const bin, const unsigned short sz) {
 	if (end == UNKNOWN) {
 		unsigned short test = 0x1234;
 		unsigned char* first = (unsigned char*)(&test);
@@ -34,15 +31,15 @@ void flip(unsigned char* const bytes, const unsigned short sz) {
 	unsigned short i = 0;
 	unsigned short j = sz - 1;
 	while (i < j) {
-		unsigned char temp = bytes[i];
-		bytes[i] = bytes[j];
-		bytes[j] = temp;
+		unsigned char temp = bin[i];
+		bin[i] = bin[j];
+		bin[j] = temp;
 		i++;
 		j--;
 	}
 }
 
-// Enable a program to use windows sockets
+// Initialize WSA
 short wsa_create() {
 	if (wsaData != NULL) {
 		return 0;
@@ -54,7 +51,7 @@ short wsa_create() {
 	return WSAStartup(MAKEWORD(2, 2), wsaData);
 }
 
-// Clean up the resources used to initialize windows sockets
+// Clean up WSA initialization resources
 unsigned short wsa_destroy() {
 	if (wsaData == NULL) {
 		return 0;

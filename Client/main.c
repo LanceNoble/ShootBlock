@@ -3,17 +3,32 @@
 #include "comms.h"
 #include "client.h"
 
+#include <stdio.h>
+
 int main() {
-	wsa_create();
-	struct Client* client = client_create(127, 0, 0, 1, 3490);
+	short res = wsa_create();
+	if (res != 0) {
+		printf("WSA Init Fail\n");
+		return res;
+	}
+	
+	struct Client* client;
+	res = client_create(127, 0, 0, 1, 3490, &client);
+	if (res != 0) {
+		printf("Connection Fail\n");
+		client_destroy(&client);
+		wsa_destroy();
+		return res;
+	}
 	
 	while (!(GetAsyncKeyState(VK_END) & 0x01)) {
 		client_ping(client);
-		client_sync(client);
+		if (client_sync(client) == -1) {
+			printf("Server Died\n");
+			break;
+		}
 	}
 
-	if (client != NULL) {
-		client_destroy(&client);
-	}
+	client_destroy(&client);
 	wsa_destroy();
 }
