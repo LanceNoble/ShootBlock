@@ -6,157 +6,153 @@
 
 #include "comms.h"
 
-#define PLAYERMAX 2
-
-struct Spot {
-	unsigned long val;
-	struct Spot* next;
-};
-
-struct Host {
-	struct sockaddr_in addr;
-	unsigned long elapse;
-};
+#define MAX_PLAYERS 2
 
 struct Server {
 	unsigned long long udp;
+	unsigned short seq;
+
 	unsigned char numOn;
-	struct Host players[PLAYERMAX];
-	struct Spot* firstOpen;
-	struct Spot* lastOpen;
-	unsigned long seq;
+	struct Host clients[MAX_PLAYERS];
+
+	struct Message* msgs;
+	struct sockaddr_in* froms;
 };
 
-short server_create(unsigned short port, struct Server** server) {
-	*server = malloc(sizeof(struct Server));
-	if (*server == NULL) {
-		return -1;
+void* server_create(const unsigned short port) {
+	struct Server* server = malloc(sizeof(struct Server));
+	if (server == NULL) {
+		printf("Server Creation Fail: No Memory\n");
+		return NULL;
 	}
 
-	(*server)->numOn = 0;
-	(*server)->seq = 0;
-
-	(*server)->firstOpen = malloc(sizeof(struct Spot));
-	if ((*server)->firstOpen == NULL) {
-		return -2;
+	server->msgs = malloc(sizeof(struct Message) * 255);
+	server->froms = malloc(sizeof(struct sockaddr_in) * 255);
+	if (server->msgs == NULL || server->froms == NULL) {
+		printf("Server Creation Fail: No Memory\n");
+		server_destroy(server);
+		return NULL;
 	}
-	(*server)->lastOpen = (*server)->firstOpen;
-	for (unsigned char i = 0; i < PLAYERMAX; i++) {
-		(*server)->players[i].elapse = 0;
-		(*server)->lastOpen->val = i;
 
-		// If this is the last iteration, the tail ends here
-		if (i == PLAYERMAX - 1) {
-			(*server)->lastOpen->next = NULL;
-			break;
+	server->seq = 1;
+	server->numOn = 0;
+	for (unsigned char i = 0; i < MAX_PLAYERS; i++) {
+		server->clients[i].seq = 0;
+		server->clients[i].ip = 0;
+		server->clients[i].port = 0;
+		server->clients[i].time = 0;
+		server->clients[i].numMsgs = 0;
+		server->clients[i].msgs = malloc(sizeof(struct Message) * 255);
+		if (server->clients[i].msgs == NULL) {
+			printf("Server Creation Fail: No Memory\n");
+			server_destroy(server);
+			return 1;
 		}
-
-		(*server)->lastOpen->next = malloc(sizeof(struct Spot));
-		if ((*server)->lastOpen->next == NULL) {
-			return -3;
-		}
-		(*server)->lastOpen = (*server)->lastOpen->next;
 	}
 
-	(*server)->udp = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-	if ((*server)->udp == INVALID_SOCKET) {
-		return WSAGetLastError();
+	server->udp = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+	if (server->udp == INVALID_SOCKET) {
+		printf("Server Creation Fail: Invalid Socket (%u)\n", WSAGetLastError());
+		server_destroy(server);
+		return NULL;
 	}
 
 	unsigned long mode = 1;
-	if (ioctlsocket((*server)->udp, FIONBIO, &mode) == SOCKET_ERROR) {
-		return WSAGetLastError();
+	if (ioctlsocket(server->udp, FIONBIO, &mode) == SOCKET_ERROR) {
+		printf("Server Creation Fail: Can't No-Block (%u)\n", WSAGetLastError());
+		server_destroy(server);
+		return NULL;
 	}
 
 	struct sockaddr_in binder;
 	binder.sin_family = AF_INET;
 	binder.sin_addr.S_un.S_addr = INADDR_ANY;
 	binder.sin_port = htons(port);
-
-	if (bind((*server)->udp, (struct sockaddr*)&binder, sizeof(struct sockaddr)) == SOCKET_ERROR) {
-		return WSAGetLastError();
+	if (bind(server->udp, (struct sockaddr*)&binder, sizeof(struct sockaddr)) == SOCKET_ERROR) {
+		printf("Server Creation Fail: Can't Bind (%u)\n", WSAGetLastError());
+		server_destroy(server);
+		return NULL;
 	}
 	
-	return 0;
+	return server;
 }
 
-short server_sync(struct Server* server) {
-	for (unsigned char i = 0; i < PLAYERMAX; i++) {
-		if (server->players[i].elapse == 0 || (clock() - server->players[i].elapse) / (double)CLOCKS_PER_SEC < TIMEOUT) {
-			continue;
+/*
+unsigned short server_sync(void* server, char** ins, unsigned char* lens) {
+	struct Server* cast = server;
+
+	for (unsigned char i = 0; i < MAX_PLAYERS; i++) {
+		server->clients[i].numMsgs = 0;
+	}
+	unsigned char numMsgs = 0;
+	unsigned char fromLen = sizeof(struct sockaddr);
+
+	do {
+		server->froms[numMsgs].sin_addr.S_un.S_addr = 0;
+		server->msgs[numMsgs].len = recvfrom(server->udp, server->msgs[numMsgs].buf, 255, 0, (struct sockaddr*)&(server->froms[numMsgs]), &fromLen);
+		if (server->froms[numMsgs].sin_addr.S_un.S_addr != 0) {
+			++numMsgs;
 		}
-		struct Spot* temp = malloc(sizeof(struct Spot));
-		if (temp == NULL) {
-			continue;
+	} while (server->froms[numMsgs].sin_addr.S_un.S_addr != 0 && numMsgs < 255);
+
+	for (unsigned char i = 0; i < numMsgs; i++) {
+		flip(server->msgs[i].buf, server->msgs[i].len);
+		unsigned short seq = (server->msgs[i].buf[0] << 8) | server->msgs[i].buf[1];
+
+		signed char spot = -1;
+		unsigned char numLike = 0;
+		for (unsigned char j = 0; j < MAX_PLAYERS; j++) {
+			if (server->clients[j].ip == server->froms[i].sin_addr.S_un.S_addr && server->clients[j].port == server->froms[i].sin_port) {
+				if (seq > server->clients[j].seq) {
+					server->clients[j].msgs[server->clients[j].numMsgs++] = server->msgs[i];
+					server->clients[j].seq = seq;
+					server->clients[j].time = clock();
+				}
+				numLike++;
+			}
+			if ((clock() - server->clients[j].time) / 1000 >= TIMEOUT_HOST) {
+				server->clients[j].ip = 0;
+				server->clients[j].port = 0;
+				server->clients[j].numMsgs = 0;
+				server->clients[j].seq = 0;
+				server->clients[j].time = 0;
+				spot = j;
+			}
 		}
-		temp->val = i;
-		temp->next = NULL;
-		if (server->firstOpen == NULL) {
-			server->firstOpen = temp;
-			server->lastOpen = server->firstOpen;
+
+		if (spot > -1 && numLike == 0) {
+			server->clients[spot].ip = server->froms[i].sin_addr.S_un.S_addr;
+			server->clients[spot].port = server->froms[i].sin_port;
+			server->clients[spot].numMsgs = 1;
+			server->clients[spot].msgs[0] = server->msgs[i];
+			server->clients[spot].seq = seq;
+			server->clients[spot].time = clock();
+			server->numOn++;
 		}
-		else if (server->lastOpen != NULL) {
-			server->lastOpen->next = temp;
+	}
+
+	for (unsigned char i = 0; i < MAX_PLAYERS; i++) {
+		union Response res;
+		for (unsigned char j = 0; j < server->clients[i].numMsgs; j++) {
+			unsigned short seq = (server->clients[i].msgs[j].buf[0] << 8) | server->clients[i].msgs[j].buf[1];
+			if (j == 0 || seq > res.ack + 16) {
+				if (j > 0) {
+					struct sockaddr_in to;
+					to.sin_family = AF_INET;
+					to.sin_addr.S_un.S_addr = server->clients[i].ip;
+					to.sin_port = server->clients[i].port;
+					sendto(server->udp, res.raw, sizeof(res), 0, (struct sockaddr*)&to, sizeof(to));
+				}
+				res.ack = (server->clients[i].msgs[j].buf[0] << 8) | server->clients[i].msgs[j].buf[1];
+				res.bit = 0;
+			}
+			else {
+				res.bit & (1 << ((seq - res.ack) - 1));
+			}
 		}
-		server->numOn--;
-		server->players[i].elapse = 0;
-		
-		printf("Player %lu.%lu.%lu.%lu:%lu Left\n",
-			server->players[i].addr.sin_addr.S_un.S_un_b.s_b1,
-			server->players[i].addr.sin_addr.S_un.S_un_b.s_b2,
-			server->players[i].addr.sin_addr.S_un.S_un_b.s_b3,
-			server->players[i].addr.sin_addr.S_un.S_un_b.s_b4,
-			server->players[i].addr.sin_port);
 	}
-
-	union Data from;
-	struct sockaddr_in fromAddr;
-	unsigned long fromAddrLen = sizeof(struct sockaddr);
-	short numRecv = recvfrom(server->udp, from.raw, (unsigned long)sizeof(union Data), 0, (struct sockaddr*)&fromAddr, &fromAddrLen);
-	if (numRecv == SOCKET_ERROR) {
-		return WSAGetLastError();
-	}
-
-	flip(from.raw, sizeof(union Data));
-	if (from.pid != PID) {
-		return -1;
-	}
-
-	unsigned char i = 0;
-	while (i < PLAYERMAX) {
-		if (server->players[i].addr.sin_addr.S_un.S_addr == fromAddr.sin_addr.S_un.S_addr && 
-			server->players[i].addr.sin_port == fromAddr.sin_port &&
-			server->players[i].elapse != 0) {
-			break;
-		}
-		i++;
-	}
-	if (i == PLAYERMAX && server->numOn < PLAYERMAX) {
-		server->players[server->firstOpen->val].addr = fromAddr;
-		server->players[server->firstOpen->val].elapse = clock();
-
-		struct Spot* recentOccupation = server->firstOpen;
-		server->firstOpen = server->firstOpen->next;
-		free(recentOccupation);
-		
-		server->numOn++;
-
-		printf("Player %lu.%lu.%lu.%lu:%lu Joined\n", 
-			fromAddr.sin_addr.S_un.S_un_b.s_b1,
-			fromAddr.sin_addr.S_un.S_un_b.s_b2,
-			fromAddr.sin_addr.S_un.S_un_b.s_b3,
-			fromAddr.sin_addr.S_un.S_un_b.s_b4,
-			fromAddr.sin_port);
-
-		return -2;
-	}
-
-	if (i == PLAYERMAX) {
-		return -3;
-	}
-
-	server->players[i].elapse = clock();
-	return 0;
+	
+	return WSAGetLastError();
 }
 
 short server_ping(struct Server* server) {
@@ -164,26 +160,17 @@ short server_ping(struct Server* server) {
 	data.pid = PID;
 	data.seq = server->seq;
 	flip(data.raw, sizeof(union Data));
-	for (unsigned char i = 0; i < PLAYERMAX; i++) {
-		if (server->players[i].elapse > 0) {
-			sendto(server->udp, data.raw, sizeof(union Data), 0, (struct sockaddr*)&server->players[i].addr, sizeof(struct sockaddr));
+	for (unsigned char i = 0; i < MAX_PLAYERS; i++) {
+		if (server->clients[i].timeRecv > 0) {
+			sendto(server->udp, data.raw, sizeof(union Data), 0, (struct sockaddr*)&server->clients[i].addr, sizeof(struct sockaddr));
 			printf("Sending Packet %lu\n", server->seq++);
 		}
 	}
 	return 0;
 }
-
-static void spots_destroy(struct Spot** head) {
-	if (*head == NULL) {
-		return;
-	}
-	spots_destroy(&((*head)->next));
-	free(*head);
-	*head = NULL;
-}
+*/
 
 void server_destroy(struct Server** server) {
-	spots_destroy(&((*server)->firstOpen));
 	free(*server);
 	*server = NULL;
 }

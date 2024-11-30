@@ -1,6 +1,6 @@
 #pragma once
 
-short client_create(unsigned char b0, unsigned char b1, unsigned char b2, unsigned char b3, unsigned short port, struct Client** client);
-short client_ping(struct Client* client);
-short client_sync(struct Client* client);
-void client_destroy(struct Client** client);
+void* client_create(const char* const ip, const unsigned short port);
+unsigned short client_ping(void* client, const char* const in, const unsigned char len);
+struct Message client_sync(void** client);
+void client_destroy(void* client);

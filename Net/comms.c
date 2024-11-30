@@ -14,7 +14,7 @@ static WSADATA* wsaData;
 
 // Reverse a contiguous set of bytes
 // Does not check to see if the bytes have already been flipped 
-void flip(unsigned char* const bin, const unsigned short sz) {
+void flip(char* const bytes, const unsigned short sizeBytes) {
 	if (end == UNKNOWN) {
 		unsigned short test = 0x1234;
 		unsigned char* first = (unsigned char*)(&test);
@@ -29,11 +29,11 @@ void flip(unsigned char* const bin, const unsigned short sz) {
 		return;
 	}
 	unsigned short i = 0;
-	unsigned short j = sz - 1;
+	unsigned short j = sizeBytes - 1;
 	while (i < j) {
-		unsigned char temp = bin[i];
-		bin[i] = bin[j];
-		bin[j] = temp;
+		char temp = bytes[i];
+		bytes[i] = bytes[j];
+		bytes[j] = temp;
 		i++;
 		j--;
 	}

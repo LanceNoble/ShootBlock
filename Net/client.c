@@ -6,87 +6,242 @@
 
 #include "comms.h"
 
-struct Client {
-	unsigned long long udp;
-	struct sockaddr_in addr;
-	unsigned long elapse;
-	unsigned long seq;
+struct Input {
+	unsigned short seq;
+	long time;
+	struct Message val;
+
+	struct Input* next;
 };
 
-short client_create(unsigned char b0, unsigned char b1, unsigned char b2, unsigned char b3, unsigned short port, struct Client** client) {
-	*client = malloc(sizeof(struct Client));
-	if (*client == NULL) {
-		return -1;
+struct Client {
+	unsigned long long udp;
+	unsigned short seq;
+	unsigned short ack;
+
+	struct Host server;
+	struct Input* firstIn;
+	struct Input* lastIn;
+};
+
+void* client_create(const char* const ip, const unsigned short port) {
+	struct Client* client = malloc(sizeof(struct Client));
+	if (client == NULL) {
+		printf("Client Creation Fail: No Memory\n");
+		return NULL;
 	}
 
-	(*client)->udp = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-	if ((*client)->udp == INVALID_SOCKET) {
-		return WSAGetLastError();
+	client->server.numMsgs = 0;
+	client->server.msgs = malloc(sizeof(struct Message) * 255);
+	if (client->server.msgs == NULL) {
+		printf("Client Creation Fail: No Memory\n");
+		client_destroy(client);
+		return NULL;
+	}
+
+	client->seq = 1;
+	client->ack = 0;
+	client->server.ip = 0;
+	unsigned char* letter = ip;
+	signed char len = 0;
+	while (*letter != '\0') {
+		len++;
+		letter++;
+	}
+	letter--;
+	unsigned char digit = 0;
+	unsigned char val = 0;
+	unsigned char bit = 24;
+	struct sockaddr_in test;
+	while (len > 0) {
+		if (*letter == '.') {
+			client->server.ip |= (val << bit);
+			digit = 0;
+			val = 0;
+			bit -= 8;
+		}
+		else {
+			unsigned char place = 1;
+			for (unsigned char i = 0; i < digit; i++) {
+				place *= 10;
+			}
+			val += (*letter - 48) * place;
+			digit++;
+		}
+
+		len--;
+		letter--;
+	}
+	client->server.ip |= val;
+	client->server.port = htons(port);
+	client->server.time = clock();
+	client->server.seq = 0;
+	client->firstIn = NULL;
+	client->lastIn = NULL;
+
+	client->udp = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+	if (client->udp == INVALID_SOCKET) {
+		printf("Client Creation Fail: Invalid Socket (%u)\n", WSAGetLastError());
+		client_destroy(client);
+		return NULL;
 	}
 
 	unsigned long mode = 1;
-	if (ioctlsocket((*client)->udp, FIONBIO, &mode) == SOCKET_ERROR) {
-		return WSAGetLastError();
+	if (ioctlsocket(client->udp, FIONBIO, &mode) == SOCKET_ERROR) {
+		printf("Client Creation Fail: Can't No-Block (%u)\n", WSAGetLastError());
+		client_destroy(client);
+		return NULL;
 	}
 
-	struct sockaddr_in binder;
-	binder.sin_family = AF_INET;
-	binder.sin_addr.S_un.S_addr = INADDR_ANY;
-	binder.sin_port = 0;
-
-	if (bind((*client)->udp, (struct sockaddr*)&binder, (unsigned long)sizeof(struct sockaddr)) == SOCKET_ERROR) {
-		return WSAGetLastError();
+	struct sockaddr_in bindAddr;
+	bindAddr.sin_family = AF_INET;
+	bindAddr.sin_addr.S_un.S_addr = INADDR_ANY;
+	bindAddr.sin_port = 0;
+	if (bind(client->udp, (struct sockaddr*)&bindAddr, (unsigned long)sizeof(struct sockaddr)) == SOCKET_ERROR) {
+		printf("Client Creation Fail: Can't Bind (%u)\n", WSAGetLastError());
+		client_destroy(client);
+		return NULL;
 	}
 
-	(*client)->addr.sin_family = AF_INET;
-	(*client)->addr.sin_addr.S_un.S_addr = htonl((b0 << 24) | (b1 << 16) | (b2 << 8) | b3);
-	(*client)->addr.sin_port = htons(port);
-
-	(*client)->elapse = clock();
-	(*client)->seq = 0;
-	return 0;
+	return client;
 }
 
-short client_ping(struct Client* client) {
-	union Data to;
-	to.pid = PID;
-	to.seq = client->seq;
-	flip(to.raw, sizeof(union Data));
-	short numSend = sendto(client->udp, to.raw, sizeof(union Data), 0, (struct sockaddr*)&(client->addr), (unsigned long)sizeof(struct sockaddr));
-	if (numSend == SOCKET_ERROR) {
-		return WSAGetLastError();
+unsigned short client_ping(void* client, const char* const in, const unsigned char len) {
+	struct Client* cast = client;
+
+	unsigned char sendLen = 0;
+	char sendBuf[0xff];
+	sendBuf[0] = (cast->seq & (0xff << 8)) >> 8;
+	sendBuf[1] = cast->seq & 0xff;
+
+	struct Input* link = malloc(sizeof(struct Input));
+	if (link != NULL) {
+		if (cast->firstIn == NULL) {
+			cast->firstIn = link;
+			cast->lastIn = link;
+		}
+		else {
+			cast->lastIn->next = link;
+			cast->lastIn = cast->lastIn->next;
+		}
+
+		link->seq = cast->seq;
+		link->time = clock();
+		link->next = NULL;
+		link->val.len = len;
+
+		for (unsigned char i = 2, j = 0; i < len + 2; i++, j++) {
+			link->val.buf[j] = in[j];
+			sendBuf[i] = in[j];
+		}
+
+		sendLen = link->val.len + 2;
+		flip(sendBuf, sendLen);
+		
+		struct sockaddr_in to;
+		to.sin_family = AF_INET;
+		to.sin_addr.S_un.S_addr = cast->server.ip;
+		to.sin_port = cast->server.port;
+
+		sendto(cast->udp, sendBuf, sendLen, 0, (struct sockaddr*)&to, (unsigned long)sizeof(struct sockaddr));
+		cast->seq++;
 	}
-	printf("Sending Packet %lu\n", client->seq++);
-	return numSend;
+
+	return WSAGetLastError();
 }
 
-short client_sync(struct Client* client) {
-	if ((clock() - client->elapse) / (double)CLOCKS_PER_SEC >= TIMEOUT) {
-		return -1;
+struct Message client_sync(void** client) {
+	struct Message state;
+	state.len = 0;
+	struct Client* cast = *client;
+
+	struct sockaddr_in from;
+	int fromLen = sizeof(from);
+	cast->server.numMsgs = 0;
+	
+	do {
+		from.sin_addr.S_un.S_addr = 0;
+		cast->server.msgs[cast->server.numMsgs].len = recvfrom(cast->udp, cast->server.msgs[cast->server.numMsgs].buf, 255, 0, (struct sockaddr*)&from, &fromLen);
+		if (from.sin_addr.S_un.S_addr == cast->server.ip && from.sin_port == cast->server.port) {
+			++cast->server.numMsgs;
+		}
+	} while (from.sin_addr.S_un.S_addr == cast->server.ip && from.sin_port == cast->server.port && cast->server.numMsgs < 255);
+
+	for (unsigned char i = 0; i < cast->server.numMsgs; i++) {
+		flip(cast->server.msgs[i].buf, cast->server.msgs[i].len);
+		if (cast->server.msgs[i].len == sizeof(union Response)) {
+			union Response res;
+			res.raw[0] = cast->server.msgs[i].buf[0];
+			res.raw[1] = cast->server.msgs[i].buf[1];
+			res.raw[2] = cast->server.msgs[i].buf[2];
+			res.raw[3] = cast->server.msgs[i].buf[3];
+
+			if (res.ack > cast->ack) {
+				unsigned char numAcks = 0;
+				unsigned short acks[17];
+				acks[numAcks++] = (unsigned short)res.ack;
+
+				for (unsigned char i = 0; i < 16; i++) {
+					if (res.bit & (1 << i)) {
+						acks[numAcks++] = (unsigned short)res.ack + i + 1;
+					}
+				}
+
+				for (unsigned char i = 0; i < numAcks; i++) {
+					while (cast->firstIn != NULL && cast->firstIn->seq <= acks[i]) {
+						struct Input* del = cast->firstIn;
+						cast->firstIn = cast->firstIn->next;
+						if (del->seq < acks[i]) {
+							client_ping(*client, del->val.buf, del->val.len);
+						}
+						free(del);
+					}
+				}
+				
+				cast->ack = acks[numAcks - 1];
+			}
+		}
+		else if (cast->server.msgs[i].len > sizeof(union Response)) {
+			unsigned short seq = (cast->server.msgs[i].buf[0] << 8) | cast->server.msgs[i].buf[1];
+			if (seq > cast->server.seq) {
+				state.len = cast->server.msgs[i].len - 2;
+				for (unsigned char j = 0, k = 2; j < state.len; j++, k++) {
+					state.buf[j] = cast->server.msgs[i].buf[k];
+				}
+				cast->server.seq = seq;
+			}
+		}
+		cast->server.time = clock();
 	}
 
-	union Data from;
-	struct sockaddr_in fromAddr;
-	unsigned long fromAddrLen = sizeof(struct sockaddr);
-	short numRecv = recvfrom(client->udp, from.raw, (unsigned long)sizeof(union Data), 0, (struct sockaddr*)&fromAddr, &fromAddrLen);
-	if (numRecv == SOCKET_ERROR) {
-		return WSAGetLastError();
-	}
-	if (fromAddr.sin_addr.S_un.S_addr != client->addr.sin_addr.S_un.S_addr) {
-		return -2;
+	if ((clock() - cast->server.time) / CLOCKS_PER_SEC >= TIMEOUT_HOST) {
+		client_destroy(*client);
+		*client = NULL;
+		return state;
 	}
 
-	flip(from.raw, sizeof(union Data));
-	if (from.pid != PID) {
-		return -3;
+	if (cast->firstIn != NULL && (clock() - cast->firstIn->time) / 1000 >= TIMEOUT_PACKET) {
+		struct Input* del = cast->firstIn;
+		cast->firstIn = cast->firstIn->next;
+		client_ping(*client, del->val.buf, del->val.len);
+		free(del);
 	}
 
-	client->elapse = clock();
-	return numRecv;
+	return state;
 }
 
-void client_destroy(struct Client** client) {
-	closesocket((*client)->udp);
-	free(*client);
-	*client = NULL;
+static void input_destroy(struct Input* in) {
+	if (in == NULL) {
+		return;
+	}
+	input_destroy(in->next);
+	free(in);
+}
+
+void client_destroy(void* client) {
+	struct Client* cast = client;
+	closesocket(cast->udp);
+	input_destroy(cast->firstIn);
+	cast->lastIn = NULL;
+	free(client);
 }

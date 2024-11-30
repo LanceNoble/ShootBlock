@@ -133,6 +133,7 @@
   <ItemGroup>
     <ClCompile Include="client.c" />
     <ClCompile Include="comms.c" />
+    <ClCompile Include="mylist.c" />
     <ClCompile Include="mem.c" />
     <ClCompile Include="convert.c" />
     <ClCompile Include="server.c" />
@@ -141,6 +142,7 @@
     <ClInclude Include="client.h" />
     <ClInclude Include="comms.h" />
     <ClInclude Include="convert.h" />
+    <ClInclude Include="mylist.h" />
     <ClInclude Include="mem.h" />
     <ClInclude Include="server.h" />
   </ItemGroup>
