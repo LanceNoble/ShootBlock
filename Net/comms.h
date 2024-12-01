@@ -31,7 +31,7 @@
 // A datagram's payload
 struct Message {
 	unsigned char len; // Number of bytes delivered
-	unsigned char buf[0xff]; // The actual bytes
+	char buf[0xff]; // The actual bytes
 };
 
 // Information necessary to talk to a host via UDP

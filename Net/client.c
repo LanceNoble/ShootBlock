@@ -39,10 +39,12 @@ void* client_create(const char* const ip, const unsigned short port) {
 		return NULL;
 	}
 
+	// Server only accepts sequences greater than the most recent sequence it received
+	// So 
 	client->seq = 1;
 	client->ack = 0;
 	client->server.ip = 0;
-	unsigned char* letter = ip;
+	const unsigned char* letter = ip;
 	signed char len = 0;
 	while (*letter != '\0') {
 		len++;
@@ -52,7 +54,6 @@ void* client_create(const char* const ip, const unsigned short port) {
 	unsigned char digit = 0;
 	unsigned char val = 0;
 	unsigned char bit = 24;
-	struct sockaddr_in test;
 	while (len > 0) {
 		if (*letter == '.') {
 			client->server.ip |= (val << bit);
@@ -68,7 +69,6 @@ void* client_create(const char* const ip, const unsigned short port) {
 			val += (*letter - 48) * place;
 			digit++;
 		}
-
 		len--;
 		letter--;
 	}
@@ -106,7 +106,8 @@ void* client_create(const char* const ip, const unsigned short port) {
 	return client;
 }
 
-unsigned short client_ping(void* client, const char* const in, const unsigned char len) {
+unsigned short client_ping(void* client, struct Message msg) {
+	short res = 0;
 	struct Client* cast = client;
 
 	unsigned char sendLen = 0;
@@ -128,13 +129,14 @@ unsigned short client_ping(void* client, const char* const in, const unsigned ch
 		link->seq = cast->seq;
 		link->time = clock();
 		link->next = NULL;
-		link->val.len = len;
+		link->val.len = msg.len;
 
-		for (unsigned char i = 2, j = 0; i < len + 2; i++, j++) {
-			link->val.buf[j] = in[j];
-			sendBuf[i] = in[j];
+		for (unsigned char i = 2, j = 0; i < link->val.len + 2; i++, j++) {
+			link->val.buf[j] = msg.buf[j];
+			sendBuf[i] = link->val.buf[j];
 		}
 
+		printf("Sending Sequence %u\n", (sendBuf[0] << 8) | sendBuf[1]);
 		sendLen = link->val.len + 2;
 		flip(sendBuf, sendLen);
 		
@@ -142,6 +144,7 @@ unsigned short client_ping(void* client, const char* const in, const unsigned ch
 		to.sin_family = AF_INET;
 		to.sin_addr.S_un.S_addr = cast->server.ip;
 		to.sin_port = cast->server.port;
+
 
 		sendto(cast->udp, sendBuf, sendLen, 0, (struct sockaddr*)&to, (unsigned long)sizeof(struct sockaddr));
 		cast->seq++;
@@ -192,7 +195,7 @@ struct Message client_sync(void** client) {
 						struct Input* del = cast->firstIn;
 						cast->firstIn = cast->firstIn->next;
 						if (del->seq < acks[i]) {
-							client_ping(*client, del->val.buf, del->val.len);
+							client_ping(*client, del->val);
 						}
 						free(del);
 					}
@@ -223,7 +226,7 @@ struct Message client_sync(void** client) {
 	if (cast->firstIn != NULL && (clock() - cast->firstIn->time) / 1000 >= TIMEOUT_PACKET) {
 		struct Input* del = cast->firstIn;
 		cast->firstIn = cast->firstIn->next;
-		client_ping(*client, del->val.buf, del->val.len);
+		client_ping(*client, del->val);
 		free(del);
 	}
 

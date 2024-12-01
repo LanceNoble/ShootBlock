@@ -12,7 +12,15 @@ int main() {
 		return res;
 	}
 	
-	void* client = client_create("73.119.107.1", 3490);
+	void* client = client_create("127.0.0.1", 3490);
+	for (unsigned char i = 0; i < 64; i++) {
+		struct Message test;
+		test.len = 3;
+		test.buf[0] = 'a';
+		test.buf[1] = 'b';
+		test.buf[2] = 'c';
+		client_ping(client, test);
+	}
 
 	/*
 	struct Client* client;
