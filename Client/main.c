@@ -13,7 +13,18 @@ int main() {
 	}
 	
 	void* client = client_create("127.0.0.1", 3490);
-	for (unsigned char i = 0; i < 64; i++) {
+	/*
+	while (0) {
+		struct Message test;
+		test.len = 3;
+		test.buf[0] = 'a';
+		test.buf[1] = 'b';
+		test.buf[2] = 'c';
+		client_ping(client, test);
+	}
+	*/
+	
+	for (unsigned long i = 0; i < 700; i++) {
 		struct Message test;
 		test.len = 3;
 		test.buf[0] = 'a';

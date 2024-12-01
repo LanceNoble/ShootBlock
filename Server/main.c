@@ -13,7 +13,9 @@ int main() {
 	}
 
 	void* server = server_create(3490);
-
+	while (!(GetAsyncKeyState(VK_END) & 0x01)) {
+		server_sync(server);
+	}
 
 	/*
 	if (res != 0) {

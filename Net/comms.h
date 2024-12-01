@@ -28,10 +28,14 @@
 //		Byte 3 - 4: Bullet Position
 //		
 
+// State Binary Prototype:
+// 2 Bytes per Player:
+//		Bytes 0 - 1: Position
+
 // A datagram's payload
 struct Message {
 	unsigned char len; // Number of bytes delivered
-	char buf[0xff]; // The actual bytes
+	unsigned char buf[0xff]; // The actual bytes
 };
 
 // Information necessary to talk to a host via UDP

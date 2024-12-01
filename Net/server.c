@@ -77,28 +77,32 @@ void* server_create(const unsigned short port) {
 	return server;
 }
 
-/*
-unsigned short server_sync(void* server, char** ins, unsigned char* lens) {
+unsigned short server_sync(void* server/*, char** ins, unsigned char* lens*/) {
 	struct Server* cast = server;
 
 	for (unsigned char i = 0; i < MAX_PLAYERS; i++) {
-		server->clients[i].numMsgs = 0;
+		cast->clients[i].numMsgs = 0;
 	}
 	unsigned char numMsgs = 0;
-	unsigned char fromLen = sizeof(struct sockaddr);
+	unsigned int fromLen = sizeof(struct sockaddr);
 
 	do {
-		server->froms[numMsgs].sin_addr.S_un.S_addr = 0;
-		server->msgs[numMsgs].len = recvfrom(server->udp, server->msgs[numMsgs].buf, 255, 0, (struct sockaddr*)&(server->froms[numMsgs]), &fromLen);
-		if (server->froms[numMsgs].sin_addr.S_un.S_addr != 0) {
+		cast->froms[numMsgs].sin_addr.S_un.S_addr = 0;
+		cast->msgs[numMsgs].len = recvfrom(cast->udp, cast->msgs[numMsgs].buf, 255, 0, (struct sockaddr*)&(cast->froms[numMsgs]), &fromLen);
+		//unsigned short poop = WSAGetLastError();
+		if (cast->froms[numMsgs].sin_addr.S_un.S_addr != 0) {
 			++numMsgs;
 		}
-	} while (server->froms[numMsgs].sin_addr.S_un.S_addr != 0 && numMsgs < 255);
+	} while (cast->froms[numMsgs].sin_addr.S_un.S_addr != 0 && numMsgs < 255);
+	//printf("bruh\n");
 
 	for (unsigned char i = 0; i < numMsgs; i++) {
-		flip(server->msgs[i].buf, server->msgs[i].len);
-		unsigned short seq = (server->msgs[i].buf[0] << 8) | server->msgs[i].buf[1];
+		flip(cast->msgs[i].buf, cast->msgs[i].len);
+		unsigned short seq = (cast->msgs[i].buf[0] << 8) | cast->msgs[i].buf[1];
+		
+		printf("Received sequence %u from %u:%u\n", seq, cast->froms[i].sin_addr.S_un.S_addr, cast->froms[i].sin_port);
 
+		/*
 		signed char spot = -1;
 		unsigned char numLike = 0;
 		for (unsigned char j = 0; j < MAX_PLAYERS; j++) {
@@ -150,11 +154,12 @@ unsigned short server_sync(void* server, char** ins, unsigned char* lens) {
 				res.bit & (1 << ((seq - res.ack) - 1));
 			}
 		}
+		*/
 	}
+	
 
 	return WSAGetLastError();
 }
-*/
 
 /*
 short server_ping(struct Server* server) {

@@ -111,7 +111,7 @@ unsigned short client_ping(void* client, struct Message msg) {
 	struct Client* cast = client;
 
 	unsigned char sendLen = 0;
-	char sendBuf[0xff];
+	unsigned char sendBuf[0xff];
 	sendBuf[0] = (cast->seq & (0xff << 8)) >> 8;
 	sendBuf[1] = cast->seq & 0xff;
 
@@ -136,7 +136,7 @@ unsigned short client_ping(void* client, struct Message msg) {
 			sendBuf[i] = link->val.buf[j];
 		}
 
-		//printf("Sending Sequence %u\n", (sendBuf[0] << 8) | sendBuf[1]);
+		printf("Sending Sequence %u\n", (sendBuf[0] << 8) | sendBuf[1]);
 		sendLen = link->val.len + 2;
 		flip(sendBuf, sendLen);
 		
@@ -146,7 +146,7 @@ unsigned short client_ping(void* client, struct Message msg) {
 		to.sin_port = cast->server.port;
 
 
-		res = sendto(cast->udp, sendBuf, sendLen, 0, (struct sockaddr*)&to, (unsigned long)sizeof(struct sockaddr));
+		res = sendto(cast->udp, sendBuf, sendLen, 0, (struct sockaddr*)&to, sizeof(struct sockaddr));
 		cast->seq++;
 	}
 
