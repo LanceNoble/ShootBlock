@@ -40,8 +40,8 @@ int main() {
 		}
 		
 	}
-
-	client_destroy(&client);
-	wsa_destroy();
 	*/
+
+	client_destroy(client);
+	wsa_destroy();
 }

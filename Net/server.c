@@ -151,10 +151,12 @@ unsigned short server_sync(void* server, char** ins, unsigned char* lens) {
 			}
 		}
 	}
-	
+
 	return WSAGetLastError();
 }
+*/
 
+/*
 short server_ping(struct Server* server) {
 	union Data data;
 	data.pid = PID;

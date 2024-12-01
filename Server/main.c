@@ -12,8 +12,10 @@ int main() {
 		return res;
 	}
 
-	struct Server* server;
-	res = server_create(3490, &server);
+	void* server = server_create(3490);
+
+
+	/*
 	if (res != 0) {
 		printf("Server Died\n");
 		server_destroy(&server);
@@ -28,4 +30,6 @@ int main() {
 
 	server_destroy(&server);
 	wsa_destroy();
+	*/
+	
 }

@@ -136,7 +136,7 @@ unsigned short client_ping(void* client, struct Message msg) {
 			sendBuf[i] = link->val.buf[j];
 		}
 
-		printf("Sending Sequence %u\n", (sendBuf[0] << 8) | sendBuf[1]);
+		//printf("Sending Sequence %u\n", (sendBuf[0] << 8) | sendBuf[1]);
 		sendLen = link->val.len + 2;
 		flip(sendBuf, sendLen);
 		
@@ -146,11 +146,14 @@ unsigned short client_ping(void* client, struct Message msg) {
 		to.sin_port = cast->server.port;
 
 
-		sendto(cast->udp, sendBuf, sendLen, 0, (struct sockaddr*)&to, (unsigned long)sizeof(struct sockaddr));
+		res = sendto(cast->udp, sendBuf, sendLen, 0, (struct sockaddr*)&to, (unsigned long)sizeof(struct sockaddr));
 		cast->seq++;
 	}
 
-	return WSAGetLastError();
+	if (res == SOCKET_ERROR) {
+		return WSAGetLastError();
+	}
+	return res;
 }
 
 struct Message client_sync(void** client) {
