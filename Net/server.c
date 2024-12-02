@@ -80,17 +80,22 @@ void* server_create(const unsigned short port) {
 unsigned short server_sync(void* server/*, char** ins, unsigned char* lens*/) {
 	struct Server* cast = server;
 
-	for (unsigned char i = 0; i < MAX_PLAYERS; i++) {
+	for (int i = 0; i < MAX_PLAYERS; i++) {
 		cast->clients[i].numMsgs = 0;
 	}
-	unsigned char numMsgs = 0;
-	unsigned int fromLen = sizeof(struct sockaddr);
+	int numMsgs = 0;
+	int fromLen = sizeof(struct sockaddr);
 
 	do {
 		cast->froms[numMsgs].sin_addr.S_un.S_addr = 0;
 		cast->msgs[numMsgs].len = recvfrom(cast->udp, cast->msgs[numMsgs].buf, 255, 0, (struct sockaddr*)&(cast->froms[numMsgs]), &fromLen);
 		//unsigned short poop = WSAGetLastError();
-		if (cast->froms[numMsgs].sin_addr.S_un.S_addr != 0) {
+		if (cast->msgs[numMsgs].len != SOCKET_ERROR) {
+			/*
+			if (cast->msgs[numMsgs].len == 255) {
+				printf("BRUH\n");
+			}
+			*/
 			++numMsgs;
 		}
 	} while (cast->froms[numMsgs].sin_addr.S_un.S_addr != 0 && numMsgs < 255);
@@ -134,7 +139,7 @@ unsigned short server_sync(void* server/*, char** ins, unsigned char* lens*/) {
 
 	for (int i = 0; i < MAX_PLAYERS; i++) {
 		if (cast->clients[i].ip != 0 && (clock() - cast->clients[i].time) / 1000 >= TIMEOUT_HOST) {
-			//printf("Empty Spot Detected\n");
+			printf("Empty Spot Detected\n");
 			cast->clients[i].ip = 0;
 			cast->clients[i].port = 0;
 			cast->clients[i].numMsgs = 0;
@@ -143,16 +148,26 @@ unsigned short server_sync(void* server/*, char** ins, unsigned char* lens*/) {
 		}
 
 		union Response res;
+		res.ack = 0;
+		res.bit = 0;
 		for (int j = 0; j < cast->clients[i].numMsgs; j++) {
 			unsigned short seq = (cast->clients[i].msgs[j].buf[0] << 8) | cast->clients[i].msgs[j].buf[1];
 			printf("Acknowledging Sequence %i\n", seq);
-			/*
 			if (j == 0 || seq > res.ack + 16) {
-				if (j > 0) {
-
+				res.ack = seq;
+				res.bit = 0;
+				if (j > 0 || cast->clients[i].numMsgs == 1) {
+					struct sockaddr_in to;
+					to.sin_family = AF_INET;
+					to.sin_addr.S_un.S_addr = cast->clients[i].ip;
+					to.sin_port = cast->clients[i].port;
+					flip(res.raw, sizeof(res));
+					printf("%i bytes sent\n", sendto(cast->udp, res.raw, sizeof(res), 0, (struct sockaddr*)&to, sizeof(to)));
 				}
 			}
-			*/
+			else {
+				res.bit & (1 << ((seq - res.ack) - 1));
+			}
 		}
 	}
 
