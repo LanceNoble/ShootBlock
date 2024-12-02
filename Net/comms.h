@@ -1,4 +1,4 @@
-#define TIMEOUT_HOST 8
+#define TIMEOUT_HOST 4
 #define TIMEOUT_PACKET 2
 
 // Input Binary:

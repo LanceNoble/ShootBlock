@@ -131,7 +131,7 @@ unsigned short client_ping(void* client, struct Message msg) {
 		link->next = NULL;
 		link->val.len = msg.len;
 
-		for (unsigned char i = 2, j = 0; i < link->val.len + 2; i++, j++) {
+		for (int i = 2, j = 0; i < link->val.len + 2; i++, j++) {
 			link->val.buf[j] = msg.buf[j];
 			sendBuf[i] = link->val.buf[j];
 		}

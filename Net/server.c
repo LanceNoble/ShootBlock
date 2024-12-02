@@ -36,7 +36,7 @@ void* server_create(const unsigned short port) {
 
 	server->seq = 1;
 	server->numOn = 0;
-	for (unsigned char i = 0; i < MAX_PLAYERS; i++) {
+	for (int i = 0; i < MAX_PLAYERS; i++) {
 		server->clients[i].seq = 0;
 		server->clients[i].ip = 0;
 		server->clients[i].port = 0;
@@ -46,7 +46,7 @@ void* server_create(const unsigned short port) {
 		if (server->clients[i].msgs == NULL) {
 			printf("Server Creation Fail: No Memory\n");
 			server_destroy(server);
-			return 1;
+			return NULL;
 		}
 	}
 
@@ -96,45 +96,54 @@ unsigned short server_sync(void* server/*, char** ins, unsigned char* lens*/) {
 	} while (cast->froms[numMsgs].sin_addr.S_un.S_addr != 0 && numMsgs < 255);
 	//printf("bruh\n");
 
-	for (unsigned char i = 0; i < numMsgs; i++) {
+	for (int i = 0; i < numMsgs; i++) {
 		flip(cast->msgs[i].buf, cast->msgs[i].len);
 		unsigned short seq = (cast->msgs[i].buf[0] << 8) | cast->msgs[i].buf[1];
-		
-		printf("Received sequence %u from %u:%u\n", seq, cast->froms[i].sin_addr.S_un.S_addr, cast->froms[i].sin_port);
 
-		/*
-		signed char spot = -1;
-		unsigned char numLike = 0;
-		for (unsigned char j = 0; j < MAX_PLAYERS; j++) {
-			if (server->clients[j].ip == server->froms[i].sin_addr.S_un.S_addr && server->clients[j].port == server->froms[i].sin_port) {
-				if (seq > server->clients[j].seq) {
-					server->clients[j].msgs[server->clients[j].numMsgs++] = server->msgs[i];
-					server->clients[j].seq = seq;
-					server->clients[j].time = clock();
+		//printf("Received sequence %u from %u:%u\n", seq, cast->froms[i].sin_addr.S_un.S_addr, cast->froms[i].sin_port);
+
+		signed short spot = -1;
+		unsigned short numLike = 0;
+		for (int j = 0; j < MAX_PLAYERS; j++) {
+			//printf("loop");
+			if (cast->clients[j].ip == 0) {
+				spot = j;
+			}
+			else if (cast->clients[j].ip == cast->froms[i].sin_addr.S_un.S_addr && cast->clients[j].port == cast->froms[i].sin_port) {
+				if (seq > cast->clients[j].seq) {
+					cast->clients[j].msgs[cast->clients[j].numMsgs++] = cast->msgs[i];
+					cast->clients[j].seq = seq;
+					cast->clients[j].time = clock();
 				}
 				numLike++;
 			}
-			if ((clock() - server->clients[j].time) / 1000 >= TIMEOUT_HOST) {
-				server->clients[j].ip = 0;
-				server->clients[j].port = 0;
-				server->clients[j].numMsgs = 0;
-				server->clients[j].seq = 0;
-				server->clients[j].time = 0;
-				spot = j;
-			}
+			//printf("%i - %i\n", clock(), cast->clients[j].time);
 		}
 
 		if (spot > -1 && numLike == 0) {
-			server->clients[spot].ip = server->froms[i].sin_addr.S_un.S_addr;
-			server->clients[spot].port = server->froms[i].sin_port;
-			server->clients[spot].numMsgs = 1;
-			server->clients[spot].msgs[0] = server->msgs[i];
-			server->clients[spot].seq = seq;
-			server->clients[spot].time = clock();
-			server->numOn++;
+			printf("Someone joined\n");
+			cast->clients[spot].ip = cast->froms[i].sin_addr.S_un.S_addr;
+			cast->clients[spot].port = cast->froms[i].sin_port;
+			cast->clients[spot].numMsgs = 1;
+			cast->clients[spot].msgs[0] = cast->msgs[i];
+			cast->clients[spot].seq = seq;
+			cast->clients[spot].time = clock();
+			cast->numOn++;
 		}
 	}
 
+	for (int i = 0; i < MAX_PLAYERS; i++) {
+		if (cast->clients[i].ip != 0 && (clock() - cast->clients[i].time) / 1000 >= TIMEOUT_HOST) {
+			printf("Empty Spot Detected\n");
+			cast->clients[i].ip = 0;
+			cast->clients[i].port = 0;
+			cast->clients[i].numMsgs = 0;
+			cast->clients[i].seq = 0;
+			cast->clients[i].time = 0;
+		}
+	}
+
+	/*
 	for (unsigned char i = 0; i < MAX_PLAYERS; i++) {
 		union Response res;
 		for (unsigned char j = 0; j < server->clients[i].numMsgs; j++) {
@@ -154,9 +163,8 @@ unsigned short server_sync(void* server/*, char** ins, unsigned char* lens*/) {
 				res.bit & (1 << ((seq - res.ack) - 1));
 			}
 		}
-		*/
 	}
-	
+	*/
 
 	return WSAGetLastError();
 }

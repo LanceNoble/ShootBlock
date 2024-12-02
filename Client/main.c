@@ -24,7 +24,7 @@ int main() {
 	}
 	*/
 	
-	for (unsigned long i = 0; i < 700; i++) {
+	for (unsigned long i = 0; i < 64; i++) {
 		struct Message test;
 		test.len = 3;
 		test.buf[0] = 'a';
