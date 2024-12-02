@@ -87,30 +87,19 @@ unsigned short server_sync(void* server/*, char** ins, unsigned char* lens*/) {
 	int fromLen = sizeof(struct sockaddr);
 
 	do {
-		cast->froms[numMsgs].sin_addr.S_un.S_addr = 0;
-		cast->msgs[numMsgs].len = recvfrom(cast->udp, cast->msgs[numMsgs].buf, 255, 0, (struct sockaddr*)&(cast->froms[numMsgs]), &fromLen);
-		//unsigned short poop = WSAGetLastError();
+		cast->msgs[numMsgs].len = recvfrom(cast->udp, cast->msgs[numMsgs].buf, 16, 0, (struct sockaddr*)&(cast->froms[numMsgs]), &fromLen);
 		if (cast->msgs[numMsgs].len != SOCKET_ERROR) {
-			/*
-			if (cast->msgs[numMsgs].len == 255) {
-				printf("BRUH\n");
-			}
-			*/
 			++numMsgs;
 		}
-	} while (cast->froms[numMsgs].sin_addr.S_un.S_addr != 0 && numMsgs < 255);
-	//printf("bruh\n");
+	} while (cast->msgs[numMsgs].len != SOCKET_ERROR && numMsgs < 255);
 
 	for (int i = 0; i < numMsgs; i++) {
 		flip(cast->msgs[i].buf, cast->msgs[i].len);
 		unsigned short seq = (cast->msgs[i].buf[0] << 8) | cast->msgs[i].buf[1];
 
-		//printf("Received sequence %u from %u:%u\n", seq, cast->froms[i].sin_addr.S_un.S_addr, cast->froms[i].sin_port);
-
 		signed short spot = -1;
 		unsigned short numLike = 0;
 		for (int j = 0; j < MAX_PLAYERS; j++) {
-			//printf("loop");
 			if (cast->clients[j].ip == 0) {
 				spot = j;
 			}
@@ -122,11 +111,10 @@ unsigned short server_sync(void* server/*, char** ins, unsigned char* lens*/) {
 				}
 				numLike++;
 			}
-			//printf("%i - %i\n", clock(), cast->clients[j].time);
 		}
 
 		if (spot > -1 && numLike == 0) {
-			//printf("Someone joined\n");
+			printf("Someone joined\n");
 			cast->clients[spot].ip = cast->froms[i].sin_addr.S_un.S_addr;
 			cast->clients[spot].port = cast->froms[i].sin_port;
 			cast->clients[spot].numMsgs = 1;
@@ -162,7 +150,7 @@ unsigned short server_sync(void* server/*, char** ins, unsigned char* lens*/) {
 					to.sin_addr.S_un.S_addr = cast->clients[i].ip;
 					to.sin_port = cast->clients[i].port;
 					flip(res.raw, sizeof(res));
-					printf("%i bytes sent\n", sendto(cast->udp, res.raw, sizeof(res), 0, (struct sockaddr*)&to, sizeof(to)));
+					sendto(cast->udp, res.raw, sizeof(res), 0, (struct sockaddr*)&to, sizeof(to));
 				}
 			}
 			else {
@@ -170,29 +158,6 @@ unsigned short server_sync(void* server/*, char** ins, unsigned char* lens*/) {
 			}
 		}
 	}
-
-	/*
-	for (unsigned char i = 0; i < MAX_PLAYERS; i++) {
-		union Response res;
-		for (unsigned char j = 0; j < server->clients[i].numMsgs; j++) {
-			unsigned short seq = (server->clients[i].msgs[j].buf[0] << 8) | server->clients[i].msgs[j].buf[1];
-			if (j == 0 || seq > res.ack + 16) {
-				if (j > 0) {
-					struct sockaddr_in to;
-					to.sin_family = AF_INET;
-					to.sin_addr.S_un.S_addr = server->clients[i].ip;
-					to.sin_port = server->clients[i].port;
-					sendto(server->udp, res.raw, sizeof(res), 0, (struct sockaddr*)&to, sizeof(to));
-				}
-				res.ack = (server->clients[i].msgs[j].buf[0] << 8) | server->clients[i].msgs[j].buf[1];
-				res.bit = 0;
-			}
-			else {
-				res.bit & (1 << ((seq - res.ack) - 1));
-			}
-		}
-	}
-	*/
 
 	return WSAGetLastError();
 }

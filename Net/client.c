@@ -162,18 +162,17 @@ struct Message client_sync(void** client) {
 	struct Client* cast = *client;
 
 	struct sockaddr_in from;
-	int fromLen = sizeof(from);
+	int fromLen = sizeof(struct sockaddr);
 	cast->server.numMsgs = 0;
 	
 	do {
-		from.sin_addr.S_un.S_addr = 0;
-		cast->server.msgs[cast->server.numMsgs].len = recvfrom(cast->udp, cast->server.msgs[cast->server.numMsgs].buf, 255, 0, (struct sockaddr*)&from, &fromLen);
-		if (from.sin_addr.S_un.S_addr == cast->server.ip && from.sin_port == cast->server.port) {
+		cast->server.msgs[cast->server.numMsgs].len = recvfrom(cast->udp, cast->server.msgs[cast->server.numMsgs].buf, 16, 0, (struct sockaddr*)&from, &fromLen);
+		if (cast->server.msgs[cast->server.numMsgs].len != SOCKET_ERROR) {
 			++cast->server.numMsgs;
 		}
-	} while (from.sin_addr.S_un.S_addr == cast->server.ip && from.sin_port == cast->server.port && cast->server.numMsgs < 255);
+	} while (cast->server.msgs[cast->server.numMsgs].len != SOCKET_ERROR && cast->server.numMsgs < 255);
 
-	for (unsigned char i = 0; i < cast->server.numMsgs; i++) {
+	for (int i = 0; i < cast->server.numMsgs; i++) {
 		flip(cast->server.msgs[i].buf, cast->server.msgs[i].len);
 		if (cast->server.msgs[i].len == sizeof(union Response)) {
 			union Response res;
@@ -183,28 +182,29 @@ struct Message client_sync(void** client) {
 			res.raw[3] = cast->server.msgs[i].buf[3];
 
 			if (res.ack > cast->ack) {
-				unsigned char numAcks = 0;
-				unsigned short acks[17];
-				acks[numAcks++] = (unsigned short)res.ack;
-
-				for (unsigned char i = 0; i < 16; i++) {
-					if (res.bit & (1 << i)) {
-						acks[numAcks++] = (unsigned short)res.ack + i + 1;
+				for (int i = 0; i < 17; i++) {
+					int ack = -1;
+					if (i == 0) {
+						ack = res.ack;
 					}
-				}
-
-				for (unsigned char i = 0; i < numAcks; i++) {
-					while (cast->firstIn != NULL && cast->firstIn->seq <= acks[i]) {
-						struct Input* del = cast->firstIn;
-						cast->firstIn = cast->firstIn->next;
-						if (del->seq < acks[i]) {
-							client_ping(*client, del->val);
+					else if (res.bit & (1 << (i - 1))) {
+						ack = (unsigned short)res.ack + i;
+					}
+					if (ack != -1) {
+						cast->ack = ack;
+						while (cast->firstIn != NULL && cast->firstIn->seq <= ack) {
+							struct Input* del = cast->firstIn;
+							cast->firstIn = cast->firstIn->next;
+							if (del->seq < ack) {
+								client_ping(*client, del->val);
+							}
+							else {
+								printf("Sequence %i has been acknowledged\n", del->seq);
+							}
+							free(del);
 						}
-						free(del);
 					}
 				}
-				
-				cast->ack = acks[numAcks - 1];
 			}
 		}
 		else if (cast->server.msgs[i].len > sizeof(union Response)) {
@@ -227,6 +227,7 @@ struct Message client_sync(void** client) {
 	}
 
 	if (cast->firstIn != NULL && (clock() - cast->firstIn->time) / 1000 >= TIMEOUT_PACKET) {
+		printf("Sequence %i not acknowledged. Resending...\n", cast->firstIn->seq);
 		struct Input* del = cast->firstIn;
 		cast->firstIn = cast->firstIn->next;
 		client_ping(*client, del->val);

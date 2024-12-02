@@ -33,6 +33,12 @@ int main() {
 		client_ping(client, test);
 	}
 
+	while (!(GetAsyncKeyState(VK_ESCAPE) & 0x01) && client != NULL) {
+		client_sync(&client);
+	}
+	printf("No feedback from server. Closing...\n");
+	//char c = getchar();
+
 	/*
 	struct Client* client;
 	res = client_create(127, 0, 0, 1, 3490, &client);
