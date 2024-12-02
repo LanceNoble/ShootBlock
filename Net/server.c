@@ -121,7 +121,7 @@ unsigned short server_sync(void* server/*, char** ins, unsigned char* lens*/) {
 		}
 
 		if (spot > -1 && numLike == 0) {
-			printf("Someone joined\n");
+			//printf("Someone joined\n");
 			cast->clients[spot].ip = cast->froms[i].sin_addr.S_un.S_addr;
 			cast->clients[spot].port = cast->froms[i].sin_port;
 			cast->clients[spot].numMsgs = 1;
@@ -134,12 +134,25 @@ unsigned short server_sync(void* server/*, char** ins, unsigned char* lens*/) {
 
 	for (int i = 0; i < MAX_PLAYERS; i++) {
 		if (cast->clients[i].ip != 0 && (clock() - cast->clients[i].time) / 1000 >= TIMEOUT_HOST) {
-			printf("Empty Spot Detected\n");
+			//printf("Empty Spot Detected\n");
 			cast->clients[i].ip = 0;
 			cast->clients[i].port = 0;
 			cast->clients[i].numMsgs = 0;
 			cast->clients[i].seq = 0;
 			cast->clients[i].time = 0;
+		}
+
+		union Response res;
+		for (int j = 0; j < cast->clients[i].numMsgs; j++) {
+			unsigned short seq = (cast->clients[i].msgs[j].buf[0] << 8) | cast->clients[i].msgs[j].buf[1];
+			printf("Acknowledging Sequence %i\n", seq);
+			/*
+			if (j == 0 || seq > res.ack + 16) {
+				if (j > 0) {
+
+				}
+			}
+			*/
 		}
 	}
 
