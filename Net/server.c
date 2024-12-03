@@ -75,7 +75,7 @@ void* server_create(const unsigned short port) {
 	return server;
 }
 
-unsigned short server_sync(void* server, struct Host* players) {
+struct Host* server_sync(void* server) {
 	struct Server* cast = server;
 
 	for (int i = 0; i < MAX_PLAYERS; i++) {
@@ -138,7 +138,8 @@ unsigned short server_sync(void* server, struct Host* players) {
 		res.bit = 0;
 		for (int j = 0; j < cast->clients[i].numMsgs; j++) {
 			unsigned short seq = (cast->clients[i].msgs[j].buf[0] << 8) | cast->clients[i].msgs[j].buf[1];
-			//printf("Acknowledging Sequence %i\n", seq);
+			printf("Acknowledging Sequence %i\n", seq);
+			//printf("Player move dir: %i\n", cast->clients[i].msgs->buf[0])
 			if (j == 0 || seq > res.ack + 16) {
 				res.ack = seq;
 				res.bit = 0;
@@ -157,8 +158,11 @@ unsigned short server_sync(void* server, struct Host* players) {
 		}
 	}
 
-	players = cast->clients;
-	return WSAGetLastError();
+	//printf("%p\n", cast->clients);
+	//*players = &(cast->clients);
+	//printf("%p\n", players);
+	return cast->clients;
+	//return WSAGetLastError();
 }
 
 /*

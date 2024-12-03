@@ -213,13 +213,6 @@ struct Message* client_sync(void* client) {
 			unsigned short seq = (cast->server.msgs[i].buf[0] << 8) | cast->server.msgs[i].buf[1];
 			if (seq > cast->server.seq) {
 				state = &(cast->server.msgs[i]);
-				/*
-				state = cast->server.msgs[i];
-				state.len = cast->server.msgs[i].len - 2;
-				for (unsigned char j = 0, k = 2; j < state.len; j++, k++) {
-					state.buf[j] = cast->server.msgs[i].buf[k];
-				}
-				*/
 				cast->server.seq = seq;
 			}
 		}
@@ -228,7 +221,6 @@ struct Message* client_sync(void* client) {
 
 	if ((clock() - cast->server.time) / CLOCKS_PER_SEC >= TIMEOUT_HOST) {
 		client_destroy(client);
-		//*client = NULL;
 		return state;
 	}
 

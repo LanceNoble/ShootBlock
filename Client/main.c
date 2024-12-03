@@ -40,6 +40,7 @@ int main() {
 		}
 
 		if (xOff != 0 || yOff != 0) {
+			//printf("moving\n");
 			float mag = sqrt(pow(xOff, 2) + pow(yOff, 2));
 			xOff /= mag;
 			yOff /= mag;
@@ -57,8 +58,6 @@ int main() {
 			struct Message ping;
 			ping.len = 5;
 			ping.buf[0] = deg % 8;
-			float dt = GetFrameTime();
-			//printf("moving %i deg at %f mag", deg, spd * dt);
 			union PackedFloat pf;
 			pf.pack = pack_float(spd * GetFrameTime());
 			ping.buf[1] = pf.raw[0];
@@ -66,18 +65,9 @@ int main() {
 			ping.buf[3] = pf.raw[2];
 			ping.buf[4] = pf.raw[3];
 			client_ping(client, ping);
-			/*
-			union PackedFloat newPF;
-			newPF.raw[0] = pf.raw[0];
-			newPF.raw[1] = pf.raw[1];
-			newPF.raw[2] = pf.raw[2];
-			newPF.raw[3] = pf.raw[3];
-			printf(" new mag: %f\n", unpack_float(newPF.pack));
-			*/
 		}
-		/*
-		struct Message* state = client_sync(&client);
-		*/
+		struct Message* state = client_sync(client);
+		
 
 		EndDrawing();
 	}
