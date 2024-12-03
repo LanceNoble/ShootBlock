@@ -156,10 +156,10 @@ unsigned short client_ping(void* client, struct Message msg) {
 	return res;
 }
 
-struct Message client_sync(void** client) {
-	struct Message state;
-	state.len = 0;
-	struct Client* cast = *client;
+struct Message* client_sync(void* client) {
+	struct Message* state = NULL;
+	//state.len = 0;
+	struct Client* cast = client;
 
 	struct sockaddr_in from;
 	int fromLen = sizeof(struct sockaddr);
@@ -196,11 +196,13 @@ struct Message client_sync(void** client) {
 							struct Input* del = cast->firstIn;
 							cast->firstIn = cast->firstIn->next;
 							if (del->seq < ack) {
-								client_ping(*client, del->val);
+								client_ping(client, del->val);
 							}
+							/*
 							else {
 								printf("Sequence %i has been acknowledged\n", del->seq);
 							}
+							*/
 							free(del);
 						}
 					}
@@ -210,10 +212,14 @@ struct Message client_sync(void** client) {
 		else if (cast->server.msgs[i].len > sizeof(union Response)) {
 			unsigned short seq = (cast->server.msgs[i].buf[0] << 8) | cast->server.msgs[i].buf[1];
 			if (seq > cast->server.seq) {
+				state = &(cast->server.msgs[i]);
+				/*
+				state = cast->server.msgs[i];
 				state.len = cast->server.msgs[i].len - 2;
 				for (unsigned char j = 0, k = 2; j < state.len; j++, k++) {
 					state.buf[j] = cast->server.msgs[i].buf[k];
 				}
+				*/
 				cast->server.seq = seq;
 			}
 		}
@@ -221,16 +227,16 @@ struct Message client_sync(void** client) {
 	}
 
 	if ((clock() - cast->server.time) / CLOCKS_PER_SEC >= TIMEOUT_HOST) {
-		client_destroy(*client);
-		*client = NULL;
+		client_destroy(client);
+		//*client = NULL;
 		return state;
 	}
 
 	if (cast->firstIn != NULL && (clock() - cast->firstIn->time) / 1000 >= TIMEOUT_PACKET) {
-		printf("Sequence %i not acknowledged. Resending...\n", cast->firstIn->seq);
+		//printf("Sequence %i not acknowledged. Resending...\n", cast->firstIn->seq);
 		struct Input* del = cast->firstIn;
 		cast->firstIn = cast->firstIn->next;
-		client_ping(*client, del->val);
+		client_ping(client, del->val);
 		free(del);
 	}
 

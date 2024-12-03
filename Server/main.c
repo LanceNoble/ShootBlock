@@ -14,7 +14,15 @@ int main() {
 
 	void* server = server_create(3490);
 	while (!(GetAsyncKeyState(VK_END) & 0x01)) {
-		server_sync(server);
+		struct Host* players = NULL;
+		server_sync(server, players);
+		if (players != NULL) {
+			for (int i = 0; i < MAX_PLAYERS; i++) {
+				if (players->ip != 0) {
+
+				}
+			}
+		}
 	}
 
 	/*

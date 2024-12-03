@@ -1,4 +1,4 @@
-#define TIMEOUT_HOST 4
+#define TIMEOUT_HOST 8
 #define TIMEOUT_PACKET 2
 
 // Input Binary:
@@ -17,6 +17,28 @@
 //				6: EAST
 //				7: NORTHEAST
 //		Byte 1 - 4: Movement Magnitude OR Shot Angle
+
+// Input Binary Prototype:
+//		Byte 0:
+//			Bit 0 - 2: Input Direction
+//				2: NORTH
+//				7: NORTHWEST
+//				4: WEST
+//				1: SOUTHWEST
+//				6: SOUTH
+//				3: SOUTHEAST
+//				0: EAST
+//				5: NORTHEAST
+//		Byte 1 - 4: Movement Magnitude
+
+// 0 % 8 = 0
+// 45 % 8 = 5
+// 90 % 8 = 2
+// 135 % 8 = 7
+// 180 % 8 = 4
+// 225 % 8 = 1
+// 270 % 8 = 6
+// 315 % 8 = 3
 
 // State Binary:
 //		Byte 0:
