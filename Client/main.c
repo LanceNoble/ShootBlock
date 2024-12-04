@@ -16,7 +16,7 @@ int main() {
 		return res;
 	}
 	
-	struct Message* state;
+	struct Message* state = NULL;
 	void* client = client_create("127.0.0.1", 3490);
 	SetConfigFlags(FLAG_VSYNC_HINT | FLAG_WINDOW_HIGHDPI);
 	InitWindow(1280, 800, "ShootBlock");
@@ -67,11 +67,16 @@ int main() {
 			ping.buf[4] = pf.raw[3];
 			client_ping(client, ping);
 		}
-		struct Message* state = client_sync(client);
+		struct Message* potentialState = client_sync(client);
+		if (potentialState != NULL) {
+			state = potentialState;
+		}
 		if (state != NULL) {
+			/*
 			for (int i = 0; i < 2; i++) {
 
 			}
+			*/
 			union PackedFloat p1x;
 			p1x.raw[0] = state->buf[2];
 			p1x.raw[1] = state->buf[3];
@@ -93,6 +98,7 @@ int main() {
 			p2y.raw[2] = state->buf[16];
 			p2y.raw[3] = state->buf[17];
 
+			//printf("FUCK");
 			printf("P1 Pos: %f, %f\n", unpack_float(p1x.pack), unpack_float(p1y.pack));
 			printf("P2 Pos: %f, %f\n", unpack_float(p2x.pack), unpack_float(p2y.pack));
 		}

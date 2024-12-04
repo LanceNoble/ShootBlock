@@ -166,7 +166,7 @@ struct Message* client_sync(void* client) {
 	cast->server.numMsgs = 0;
 	
 	do {
-		cast->server.msgs[cast->server.numMsgs].len = recvfrom(cast->udp, cast->server.msgs[cast->server.numMsgs].buf, 16, 0, (struct sockaddr*)&from, &fromLen);
+		cast->server.msgs[cast->server.numMsgs].len = recvfrom(cast->udp, cast->server.msgs[cast->server.numMsgs].buf, 32, 0, (struct sockaddr*)&from, &fromLen);
 		if (cast->server.msgs[cast->server.numMsgs].len != SOCKET_ERROR) {
 			++cast->server.numMsgs;
 		}
@@ -198,11 +198,11 @@ struct Message* client_sync(void* client) {
 							if (del->seq < ack) {
 								client_ping(client, del->val);
 							}
-							/*
+							
 							else {
-								printf("Sequence %i has been acknowledged\n", del->seq);
+								//printf("Sequence %i has been acknowledged\n", del->seq);
 							}
-							*/
+							
 							free(del);
 						}
 					}

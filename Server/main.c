@@ -19,7 +19,6 @@ int main() {
 		return res;
 	}
 
-
 	void* server = server_create(3490);
 	struct Message state;
 	struct Player ps[MAX_PLAYERS];
@@ -94,16 +93,52 @@ int main() {
 
 				ps[i].x += xOff * mag;
 				ps[i].y += yOff * mag;
-				
+
 				//printf("p%i pos: %f, %f\n", i, ps[i].x, ps[i].y);
-				//for (int k = 0; k < 4; k++) {
-				//
-				//}
-				//server_ping(server, );
 				//printf("p%i move dir %i mag %f\n", i, players[i].msgs[j].buf[2], mag);
 			}
 		}
-				
+
+
+		struct Message m;
+		m.len = 16;
+		
+		union PackedFloat pfs[MAX_PLAYERS * 2];
+		pfs[0].pack = pack_float(ps[0].x);
+		pfs[1].pack = pack_float(ps[0].y);
+		pfs[2].pack = pack_float(ps[1].x);
+		pfs[3].pack = pack_float(ps[1].y);
+
+		m.buf[0]  = pfs[0].raw[0];
+		m.buf[1]  = pfs[0].raw[1];
+		m.buf[2]  = pfs[0].raw[2];
+		m.buf[3]  = pfs[0].raw[3];
+
+		m.buf[4]  = pfs[1].raw[0];
+		m.buf[5]  = pfs[1].raw[1];
+		m.buf[6]  = pfs[1].raw[2];
+		m.buf[7]  = pfs[1].raw[3];
+
+		m.buf[8]  = pfs[2].raw[0];
+		m.buf[9]  = pfs[2].raw[1];
+		m.buf[10] = pfs[2].raw[2];
+		m.buf[11] = pfs[2].raw[3];
+
+		m.buf[12] = pfs[3].raw[0];
+		m.buf[13] = pfs[3].raw[1];
+		m.buf[14] = pfs[3].raw[2];
+		m.buf[15] = pfs[3].raw[3];
+
+		/*
+		for (int k = 0; k < MAX_PLAYERS; k++) {
+			pfs[k].pack = pack_float(ps[k].x);
+			for (int l = 0; l < 8; l++) {
+				m.buf[(k * 8 + l)] = 0;
+			}
+		}
+		*/
+
+		server_ping(server, m);
 	}
 
 	/*
@@ -121,6 +156,5 @@ int main() {
 
 	server_destroy(&server);
 	wsa_destroy();
-	*/
-	
+	*/	
 }

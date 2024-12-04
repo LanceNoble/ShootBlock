@@ -138,7 +138,7 @@ struct Host* server_sync(void* server) {
 		res.bit = 0;
 		for (int j = 0; j < cast->clients[i].numMsgs; j++) {
 			unsigned short seq = (cast->clients[i].msgs[j].buf[0] << 8) | cast->clients[i].msgs[j].buf[1];
-			printf("Acknowledging Sequence %i\n", seq);
+			//printf("Acknowledging Sequence %i\n", seq);
 			//printf("Player move dir: %i\n", cast->clients[i].msgs->buf[0])
 			if (j == 0 || seq > res.ack + 16) {
 				res.ack = seq;
@@ -175,6 +175,7 @@ void server_ping(void* server, struct Message state) {
 		sendBuf[j] = state.buf[i];
 	}
 
+	flip(sendBuf, state.len + 2);
 	for (int i = 0; i < MAX_PLAYERS; i++) {
 		if (cast->clients[i].ip != 0) {
 			struct sockaddr_in to;
@@ -182,6 +183,7 @@ void server_ping(void* server, struct Message state) {
 			to.sin_addr.S_un.S_addr = cast->clients[i].ip;
 			to.sin_port = cast->clients[i].port;
 
+			
 			sendto(cast->udp, sendBuf, state.len + 2, 0, (struct sockaddr*)&to, sizeof(struct sockaddr));
 			cast->seq++;
 		}

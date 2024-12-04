@@ -55,7 +55,9 @@
 //		
 
 // State Binary Prototype:
-// 2 Bytes per Player:
+// 8 Bytes per Player:
+//		Per Player:
+//			4 Bytes (x and y coord)
 //		Bytes 0 - 1: Position
 
 // A datagram's payload
