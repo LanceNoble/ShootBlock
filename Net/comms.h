@@ -1,3 +1,5 @@
+#define MAX_PLAYERS 2
+
 #define TIMEOUT_HOST 8
 #define TIMEOUT_PACKET 2
 
@@ -32,13 +34,15 @@
 //		Byte 1 - 4: Movement Magnitude
 
 // 0 % 8 = 0
-// 45 % 8 = 5
-// 90 % 8 = 2
-// 135 % 8 = 7
-// 180 % 8 = 4
 // 225 % 8 = 1
-// 270 % 8 = 6
+// 90 % 8 = 2
 // 315 % 8 = 3
+// 180 % 8 = 4
+// 45 % 8 = 5
+// 270 % 8 = 6
+// 135 % 8 = 7
+
+// 315 / 8 = 39 + 3
 
 // State Binary:
 //		Byte 0:
@@ -57,7 +61,7 @@
 // A datagram's payload
 struct Message {
 	int len; // Number of bytes delivered
-	unsigned char buf[16]; // The actual bytes
+	unsigned char buf[32]; // The actual bytes
 };
 
 // Information necessary to talk to a host via UDP

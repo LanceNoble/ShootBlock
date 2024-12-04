@@ -165,21 +165,28 @@ struct Host* server_sync(void* server) {
 	//return WSAGetLastError();
 }
 
-/*
-short server_ping(struct Server* server) {
-	union Data data;
-	data.pid = PID;
-	data.seq = server->seq;
-	flip(data.raw, sizeof(union Data));
-	for (unsigned char i = 0; i < MAX_PLAYERS; i++) {
-		if (server->clients[i].timeRecv > 0) {
-			sendto(server->udp, data.raw, sizeof(union Data), 0, (struct sockaddr*)&server->clients[i].addr, sizeof(struct sockaddr));
-			printf("Sending Packet %lu\n", server->seq++);
+void server_ping(void* server, struct Message state) {
+	struct Server* cast = server;
+
+	unsigned char sendBuf[32];
+	sendBuf[0] = (cast->seq & (0xff << 8)) >> 8;
+	sendBuf[1] = cast->seq & 0xff;
+	for (int i = 0, j = 2; i < state.len; i++, j++) {
+		sendBuf[j] = state.buf[i];
+	}
+
+	for (int i = 0; i < MAX_PLAYERS; i++) {
+		if (cast->clients[i].ip != 0) {
+			struct sockaddr_in to;
+			to.sin_family = AF_INET;
+			to.sin_addr.S_un.S_addr = cast->clients[i].ip;
+			to.sin_port = cast->clients[i].port;
+
+			sendto(cast->udp, sendBuf, state.len + 2, 0, (struct sockaddr*)&to, sizeof(struct sockaddr));
+			cast->seq++;
 		}
 	}
-	return 0;
 }
-*/
 
 void server_destroy(struct Server** server) {
 	free(*server);
