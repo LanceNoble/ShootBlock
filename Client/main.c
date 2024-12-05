@@ -52,12 +52,9 @@ int main() {
 			struct Message ping;
 			ping.len = 5;
 			ping.buf[0] = deg / 45;
-			union PackedFloat pf;
-			pf.pack = pack_float(spd * GetFrameTime());
-			ping.buf[1] = pf.raw[0];
-			ping.buf[2] = pf.raw[1];
-			ping.buf[3] = pf.raw[2];
-			ping.buf[4] = pf.raw[3];
+			
+
+			pack_float(spd * GetFrameTime(), ping.buf + 1);
 			client_ping(client, ping);
 		}
 		struct Message* potentialState = client_sync(client);
@@ -65,38 +62,12 @@ int main() {
 			state = potentialState;
 		}
 		if (state != NULL) {
-			/*
-			for (int i = 0; i < 2; i++) {
-
-			}
-			*/
-			union PackedFloat p1x;
-			p1x.raw[0] = state->buf[2];
-			p1x.raw[1] = state->buf[3];
-			p1x.raw[2] = state->buf[4];
-			p1x.raw[3] = state->buf[5];
-			union PackedFloat p1y;
-			p1y.raw[0] = state->buf[6];
-			p1y.raw[1] = state->buf[7];
-			p1y.raw[2] = state->buf[8];
-			p1y.raw[3] = state->buf[9];
-			union PackedFloat p2x;
-			p2x.raw[0] = state->buf[10];
-			p2x.raw[1] = state->buf[11];
-			p2x.raw[2] = state->buf[12];
-			p2x.raw[3] = state->buf[13];
-			union PackedFloat p2y;
-			p2y.raw[0] = state->buf[14];
-			p2y.raw[1] = state->buf[15];
-			p2y.raw[2] = state->buf[16];
-			p2y.raw[3] = state->buf[17];
-
 			Vector2 p1Pos;
-			p1Pos.x = unpack_float(p1x.pack);
-			p1Pos.y = -unpack_float(p1y.pack);
+			p1Pos.x = unpack_float(state->buf + 2);
+			p1Pos.y = -unpack_float(state->buf + 6);
 			Vector2 p2Pos;
-			p2Pos.x = unpack_float(p2x.pack);
-			p2Pos.y = -unpack_float(p2y.pack);
+			p2Pos.x = unpack_float(state->buf + 10);
+			p2Pos.y = -unpack_float(state->buf + 14);
 			Vector2 sz;
 			sz.x = 50;
 			sz.y = 50;

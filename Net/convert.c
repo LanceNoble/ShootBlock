@@ -1,25 +1,24 @@
 #include "convert.h"
 
-// Convert from denary to IEEE 754 binary
-// den - number to convert
-// return - IEEE 754 binary representation of den
-//
-// Return UNSIGNED int to ensure control over all bits
-// Otherwise, compiler takes control of top bit
-unsigned long pack_float(float den) {
+union Pack {
+	unsigned long whole;
+	char chunks[4];
+};
 
-	// If we don't check to see if den has zero whole parts, this function will run forever
-	// It will cause inaccuracies, but I don't wanna add more code just to differentiate 0.0923 from 0
-	// Let's be honest, that number is so small it can pretty much be 0
-	if ((signed int)den == 0)
+void pack_float(float den, char* bin) {
+
+	// Check if the float is between 0 and 1, or the function won't return
+	// Simplicity for negligible inaccuracy
+	if ((int)den == 0)
 		return 0;
 
-	// Extract den's sign
-	unsigned int sign = (unsigned int)(den < 0);
+	// Extract the float's sign
+	int sign = den < 0;
 
-	// We already have den's sign, so turn it into an absolute value to simplify things
-	if (sign == 1)
+	// We have the float's sign, so make it absolute
+	if (sign == 1) {
 		den *= -1;
+	}
 
 	// Split den into two parts: its whole and its fraction
 	unsigned int whole = (unsigned int)den;
@@ -83,28 +82,33 @@ unsigned long pack_float(float den) {
 		mantissa |= denBin & (1 << normalizer);
 	}
 
-	return (sign << 31) | (biEx << 23) | mantissa << (23 - mantissaWidth);
+	union Pack p;
+	p.whole = (sign << 31) | (biEx << 23) | mantissa << (23 - mantissaWidth);
+	bin[0] = p.chunks[0];
+	bin[1] = p.chunks[1];
+	bin[2] = p.chunks[2];
+	bin[3] = p.chunks[3];
 }
 
-// Convert from IEEE 754 binary to denary
-// bin - IEEE 754 binary to convert
-// return - denary representation of bin
-//
-// Take in UNSIGNED int to ensure control over all bits
-// Otherwise, compiler takes control of top bit
-float unpack_float(unsigned long bin) {
+float unpack_float(char* bin) {
 
 	// If this condition isn't checked, the function will return infinity
 	if (bin == 0)
 		return 0;
 
-	unsigned int sign = (bin & (0b1 << 31)) >> 31;
-	unsigned int biEx = (bin & (0b11111111 << 23)) >> 23;
+	union Pack p;
+	p.chunks[0] = bin[0];
+	p.chunks[1] = bin[1];
+	p.chunks[2] = bin[2];
+	p.chunks[3] = bin[3];
+
+	unsigned int sign = (p.whole & (0b1 << 31)) >> 31;
+	unsigned int biEx = (p.whole & (0b11111111 << 23)) >> 23;
 	unsigned int unBiEx = biEx - 127;
 
 	float mantissaDen = 1.0f;
 	float currentPlace = 0.5f;
-	unsigned int mantissaBin = bin & 0b11111111111111111111111;
+	unsigned int mantissaBin = p.whole & 0b11111111111111111111111;
 	signed int iMantissaBin = 22; // If this isn't signed, the loop will never end
 	while (iMantissaBin >= 0) {
 		if (((mantissaBin & (1 << iMantissaBin)) >> iMantissaBin) == 1)

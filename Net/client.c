@@ -203,11 +203,6 @@ struct Message* client_sync(void* client) {
 							if (del->seq < ack) {
 								client_ping(client, del->val);
 							}
-							
-							else {
-								//printf("Sequence %i has been acknowledged\n", del->seq);
-							}
-							
 							free(del);
 						}
 					}

@@ -145,7 +145,7 @@ struct Host* server_sync(void* server) {
 		for (int j = 0; j < cast->clients[i].numMsgs; j++) {
 			unsigned short seq = (cast->clients[i].msgs[j].buf[0] << 8) | cast->clients[i].msgs[j].buf[1];
 			//printf("Acknowledging Sequence %i\n", seq);
-			//printf("Player move dir: %i\n", cast->clients[i].msgs->buf[0])
+			//printf("Player move dir: %i\n", cast->clients[i].msgs->buf[0]);
 			if (j == 0 || seq > res.ack + 16) {
 				res.ack = seq;
 				res.bit = 0;
@@ -155,6 +155,12 @@ struct Host* server_sync(void* server) {
 					to.sin_addr.S_un.S_addr = cast->clients[i].ip;
 					to.sin_port = cast->clients[i].port;
 					sendto(cast->udp, res.raw, sizeof(res), 0, (struct sockaddr*)&to, sizeof(to));
+					
+					/*
+					for (int i = 0; i < 17; i++) {
+						sendto(cast->udp, res.raw, sizeof(res), 0, (struct sockaddr*)&to, sizeof(to));
+					}
+					*/
 				}
 			}
 			else {

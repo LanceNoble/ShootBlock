@@ -1,6 +1,6 @@
 #define MAX_PLAYERS 2
 
-#define TIMEOUT_HOST 8
+#define TIMEOUT_HOST 120
 #define TIMEOUT_PACKET 2
 
 // Input Binary:
@@ -32,26 +32,6 @@
 //				0: EAST
 //				5: NORTHEAST
 //		Byte 1 - 4: Movement Magnitude
-
-// 0 % 8 = 0
-// 225 % 8 = 1
-// 90 % 8 = 2
-// 315 % 8 = 3
-// 180 % 8 = 4
-// 45 % 8 = 5
-// 270 % 8 = 6
-// 135 % 8 = 7
-
-// 0 / 45 = 0;
-// 45 / 45 = 1;
-// 90 / 45 = 2;
-// 135 / 45 = 3;
-// 180 / 45 = 4;
-// 225 / 45 = 5
-// 270 / 45 = 6;
-// 315 / 45 = 7;
-
-// 315 / 8 = 39 + 3
 
 // State Binary:
 //		Byte 0:
