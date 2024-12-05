@@ -45,8 +45,8 @@ int main() {
 			}
 		}
 
-		if ((clock() - t) / CLOCKS_PER_SEC >= 1) {
-			//t = clock();
+		if ((clock() - t) / CLOCKS_PER_SEC >= 2) {
+			t = clock();
 			struct Message m;
 			m.len = 16;
 

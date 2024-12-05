@@ -26,7 +26,7 @@ struct Client {
 	struct Input* lastIn;
 };
 
-void* client_create(const char* const ip, const unsigned short port) {
+struct Client* client_create(const char* const ip, const unsigned short port) {
 	struct Client* client = malloc(sizeof(struct Client));
 	if (client == NULL) {
 		printf("Client Creation Fail: No Memory\n");
@@ -113,27 +113,27 @@ void* client_create(const char* const ip, const unsigned short port) {
 	return client;
 }
 
-unsigned short client_ping(void* client, struct Message msg) {
+unsigned short client_ping(struct Client* client, struct Message msg) {
 	short res = 0;
-	struct Client* cast = client;
+	client;
 
 	int sendLen = 0;
 	unsigned char sendBuf[8];
-	sendBuf[0] = (cast->seq & (0xff << 8)) >> 8;
-	sendBuf[1] = cast->seq & 0xff;
+	sendBuf[0] = (client->seq & (0xff << 8)) >> 8;
+	sendBuf[1] = client->seq & 0xff;
 
 	struct Input* link = malloc(sizeof(struct Input));
 	if (link != NULL) {
-		if (cast->firstIn == NULL) {
-			cast->firstIn = link;
-			cast->lastIn = link;
+		if (client->firstIn == NULL) {
+			client->firstIn = link;
+			client->lastIn = link;
 		}
 		else {
-			cast->lastIn->next = link;
-			cast->lastIn = cast->lastIn->next;
+			client->lastIn->next = link;
+			client->lastIn = client->lastIn->next;
 		}
 
-		link->seq = cast->seq;
+		link->seq = client->seq;
 		link->time = clock();
 		link->next = NULL;
 		link->val.len = msg.len;
@@ -148,12 +148,12 @@ unsigned short client_ping(void* client, struct Message msg) {
 		
 		struct sockaddr_in to;
 		to.sin_family = AF_INET;
-		to.sin_addr.S_un.S_addr = cast->server.ip;
-		to.sin_port = cast->server.port;
+		to.sin_addr.S_un.S_addr = client->server.ip;
+		to.sin_port = client->server.port;
 
 
-		res = sendto(cast->udp, sendBuf, sendLen, 0, (struct sockaddr*)&to, sizeof(struct sockaddr));
-		cast->seq++;
+		res = sendto(client->udp, sendBuf, sendLen, 0, (struct sockaddr*)&to, sizeof(struct sockaddr));
+		client->seq++;
 	}
 
 	if (res == SOCKET_ERROR) {
@@ -162,31 +162,30 @@ unsigned short client_ping(void* client, struct Message msg) {
 	return res;
 }
 
-struct Message* client_sync(void* client) {
+struct Message* client_sync(struct Client* client) {
 	struct Message* state = NULL;
 	//state.len = 0;
-	struct Client* cast = client;
 
 	struct sockaddr_in from;
 	int fromLen = sizeof(struct sockaddr);
-	cast->server.numMsgs = 0;
+	client->server.numMsgs = 0;
 	
 	do {
-		cast->server.msgs[cast->server.numMsgs].len = recvfrom(cast->udp, cast->server.msgs[cast->server.numMsgs].buf, 32, 0, (struct sockaddr*)&from, &fromLen);
-		if (cast->server.msgs[cast->server.numMsgs].len != SOCKET_ERROR) {
-			++cast->server.numMsgs;
+		client->server.msgs[client->server.numMsgs].len = recvfrom(client->udp, client->server.msgs[client->server.numMsgs].buf, 32, 0, (struct sockaddr*)&from, &fromLen);
+		if (client->server.msgs[client->server.numMsgs].len != SOCKET_ERROR) {
+			++client->server.numMsgs;
 		}
-	} while (cast->server.msgs[cast->server.numMsgs].len != SOCKET_ERROR && cast->server.numMsgs < 255);
+	} while (client->server.msgs[client->server.numMsgs].len != SOCKET_ERROR && client->server.numMsgs < 32);
 
-	for (int i = 0; i < cast->server.numMsgs; i++) {
-		if (cast->server.msgs[i].len == sizeof(union Response)) {
+	for (int i = 0; i < client->server.numMsgs; i++) {
+		if (client->server.msgs[i].len == sizeof(union Response)) {
 			union Response res;
-			res.raw[0] = cast->server.msgs[i].buf[0];
-			res.raw[1] = cast->server.msgs[i].buf[1];
-			res.raw[2] = cast->server.msgs[i].buf[2];
-			res.raw[3] = cast->server.msgs[i].buf[3];
+			res.raw[0] = client->server.msgs[i].buf[0];
+			res.raw[1] = client->server.msgs[i].buf[1];
+			res.raw[2] = client->server.msgs[i].buf[2];
+			res.raw[3] = client->server.msgs[i].buf[3];
 
-			if (res.ack > cast->ack) {
+			if (res.ack > client->ack) {
 				for (int i = 0; i < 17; i++) {
 					int ack = -1;
 					if (i == 0) {
@@ -196,10 +195,10 @@ struct Message* client_sync(void* client) {
 						ack = (unsigned short)res.ack + i;
 					}
 					if (ack != -1) {
-						cast->ack = ack;
-						while (cast->firstIn != NULL && cast->firstIn->seq <= ack) {
-							struct Input* del = cast->firstIn;
-							cast->firstIn = cast->firstIn->next;
+						client->ack = ack;
+						while (client->firstIn != NULL && client->firstIn->seq <= ack) {
+							struct Input* del = client->firstIn;
+							client->firstIn = client->firstIn->next;
 							if (del->seq < ack) {
 								client_ping(client, del->val);
 							}
@@ -209,25 +208,25 @@ struct Message* client_sync(void* client) {
 				}
 			}
 		}
-		else if (cast->server.msgs[i].len > sizeof(union Response)) {
-			unsigned short seq = (cast->server.msgs[i].buf[0] << 8) | cast->server.msgs[i].buf[1];
-			if (seq > cast->server.seq) {
-				state = &(cast->server.msgs[i]);
-				cast->server.seq = seq;
+		else if (client->server.msgs[i].len > sizeof(union Response)) {
+			unsigned short seq = (client->server.msgs[i].buf[0] << 8) | client->server.msgs[i].buf[1];
+			if (seq > client->server.seq) {
+				state = &(client->server.msgs[i]);
+				client->server.seq = seq;
 			}
 		}
-		cast->server.time = clock();
+		client->server.time = clock();
 	}
 
-	if ((clock() - cast->server.time) / CLOCKS_PER_SEC >= TIMEOUT_HOST) {
+	if ((clock() - client->server.time) / CLOCKS_PER_SEC >= TIMEOUT_HOST) {
 		client_destroy(client);
 		return state;
 	}
 
-	if (cast->firstIn != NULL && (clock() - cast->firstIn->time) / 1000 >= TIMEOUT_PACKET) {
+	if (client->firstIn != NULL && (clock() - client->firstIn->time) / CLOCKS_PER_SEC >= TIMEOUT_PACKET) {
 		//printf("Sequence %i not acknowledged. Resending...\n", cast->firstIn->seq);
-		struct Input* del = cast->firstIn;
-		cast->firstIn = cast->firstIn->next;
+		struct Input* del = client->firstIn;
+		client->firstIn = client->firstIn->next;
 		client_ping(client, del->val);
 		free(del);
 	}
@@ -243,10 +242,8 @@ static void input_destroy(struct Input* in) {
 	free(in);
 }
 
-void client_destroy(void* client) {
-	struct Client* cast = client;
-	closesocket(cast->udp);
-	input_destroy(cast->firstIn);
-	cast->lastIn = NULL;
+void client_destroy(struct Client* client) {
+	closesocket(client->udp);
+	input_destroy(client->firstIn);
 	free(client);
 }

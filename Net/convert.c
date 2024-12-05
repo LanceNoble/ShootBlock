@@ -9,8 +9,9 @@ void pack_float(float den, char* bin) {
 
 	// Check if the float is between 0 and 1, or the function won't return
 	// Simplicity for negligible inaccuracy
-	if ((int)den == 0)
+	if ((int)den == 0) {
 		return 0;
+	}
 
 	// Extract the float's sign
 	int sign = den < 0;
@@ -20,7 +21,6 @@ void pack_float(float den, char* bin) {
 		den *= -1;
 	}
 
-	// Split den into two parts: its whole and its fraction
 	unsigned int whole = (unsigned int)den;
 	float fraction = den - whole;
 

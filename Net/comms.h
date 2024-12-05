@@ -63,14 +63,14 @@ struct Host {
 	long time;
 	unsigned short seq;
 
-	unsigned char numMsgs;
+	int numMsgs;
 	struct Message* msgs;
 };
 
 union Response {
 	struct { 
-		unsigned long ack : 16;
-		unsigned long bit : 16;
+		unsigned int ack : 16;
+		unsigned int bit : 16;
 	};
 	char raw[4];
 };
