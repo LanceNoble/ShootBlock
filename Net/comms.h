@@ -94,6 +94,3 @@ union Response {
 	};
 	char raw[4];
 };
-
-short wsa_create();
-unsigned short wsa_destroy(); 

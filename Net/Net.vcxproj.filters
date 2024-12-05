@@ -33,9 +33,6 @@
     <ClCompile Include="mem.c">
       <Filter>Source Files\utils</Filter>
     </ClCompile>
-    <ClCompile Include="comms.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="mylist.c">
       <Filter>Source Files\utils</Filter>
     </ClCompile>

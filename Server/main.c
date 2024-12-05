@@ -13,11 +13,6 @@ struct Player {
 };
 
 int main() {
-	short res = wsa_create();
-	if (res != 0) {
-		printf("WSA Init Fail\n");
-		return res;
-	}
 
 	void* server = server_create(3490);
 	struct Message state;

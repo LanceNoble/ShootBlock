@@ -8,11 +8,6 @@
 #include <stdio.h>
 
 int main() {
-	short res = wsa_create();
-	if (res != 0) {
-		printf("WSA Init Fail\n");
-		return res;
-	}
 	
 	struct Message* state = NULL;
 	void* client = client_create("127.0.0.1", 3490);
@@ -110,5 +105,4 @@ int main() {
 		printf("You Quit.\n");
 		client_destroy(client);
 	}
-	wsa_destroy();
 }
