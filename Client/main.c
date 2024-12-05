@@ -91,8 +91,19 @@ int main() {
 			p2y.raw[2] = state->buf[16];
 			p2y.raw[3] = state->buf[17];
 
-			printf("P1 Pos: %f, %f\n", unpack_float(p1x.pack), unpack_float(p1y.pack));
-			printf("P2 Pos: %f, %f\n", unpack_float(p2x.pack), unpack_float(p2y.pack));
+			Vector2 p1Pos;
+			p1Pos.x = unpack_float(p1x.pack);
+			p1Pos.y = -unpack_float(p1y.pack);
+			Vector2 p2Pos;
+			p2Pos.x = unpack_float(p2x.pack);
+			p2Pos.y = -unpack_float(p2y.pack);
+			Vector2 sz;
+			sz.x = 50;
+			sz.y = 50;
+			DrawRectangleV(p1Pos, sz, WHITE);
+			DrawRectangleV(p2Pos, sz, WHITE);
+			//printf("P1 Pos: %f, %f\n", unpack_float(p1x.pack), unpack_float(p1y.pack));
+			//printf("P2 Pos: %f, %f\n", unpack_float(p2x.pack), unpack_float(p2y.pack));
 		}
 
 		EndDrawing();

@@ -52,7 +52,7 @@ int main() {
 				ps[i].x += xOff * mag;
 				ps[i].y += yOff * mag;
 
-				printf("p%i pos: %f, %f\n", i, ps[i].x, ps[i].y);
+				//printf("p%i pos: %f, %f\n", i, ps[i].x, ps[i].y);
 				//printf("p%i move dir %i mag %f\n", i, players[i].msgs[j].buf[2], mag);
 			}
 		}
