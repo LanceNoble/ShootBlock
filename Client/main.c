@@ -51,7 +51,7 @@ int main() {
 			float spd = 250.0f;
 			struct Message ping;
 			ping.len = 5;
-			ping.buf[0] = deg % 8;
+			ping.buf[0] = deg / 45;
 			union PackedFloat pf;
 			pf.pack = pack_float(spd * GetFrameTime());
 			ping.buf[1] = pf.raw[0];

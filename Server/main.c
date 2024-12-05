@@ -7,6 +7,8 @@
 #include <math.h>
 #include <stdio.h>
 
+#define PI 3.141592653589793238462643383279502884197169399375105820974944592307816406286208998628034825342117067
+
 struct Player {
 	float x;
 	float y;
@@ -43,48 +45,9 @@ int main() {
 				pf.raw[3] = players[i].msgs[j].buf[6];
 				float mag = unpack_float(pf.pack);
 
-				float xOff = 0;
-				float yOff = 0;
-				if (players[i].msgs[j].buf[2] == 0) {
-					// angle = 0
-					xOff = 1;
-					yOff = 0;
-				}
-				else if (players[i].msgs[j].buf[2] == 1) {
-					// angle = 225
-					xOff = -1 / sqrt(2);
-					yOff = -1 / sqrt(2);
-				}
-				else if (players[i].msgs[j].buf[2] == 2) {
-					// angle = 90
-					xOff = 0;
-					yOff = -1;
-				}
-				else if (players[i].msgs[j].buf[2] == 3) {
-					// angle = 315
-					xOff = 1 / sqrt(2);
-					yOff = -1 / sqrt(2);
-				}
-				else if (players[i].msgs[j].buf[2] == 4) {
-					// angle = 180
-					xOff = -1;
-					yOff = 0;
-				}
-				else if (players[i].msgs[j].buf[2] == 5) {
-					// angle = 45
-					xOff = 1 / sqrt(2);
-					yOff = 1 / sqrt(2);
-				}
-				else if (players[i].msgs[j].buf[2] == 6) {
-					// angle = 270
-					xOff = 0;
-					yOff = 1;
-				}
-				else if (players[i].msgs[j].buf[2] == 7) {
-					// angle = 135
-					xOff = -1 / sqrt(2);
-					yOff = 1 / sqrt(2);
-				}
+				
+				float xOff = cos(players[i].msgs[j].buf[2] * 45 * PI / 180);
+				float yOff = sin(players[i].msgs[j].buf[2] * 45 * PI / 180);
 
 				ps[i].x += xOff * mag;
 				ps[i].y += yOff * mag;
