@@ -92,7 +92,7 @@ struct Host* server_sync(void* server) {
 	} while (cast->msgs[numMsgs].len != SOCKET_ERROR && numMsgs < 255);
 
 	for (int i = 0; i < numMsgs; i++) {
-		flip(cast->msgs[i].buf, cast->msgs[i].len);
+		//flip(cast->msgs[i].buf, cast->msgs[i].len);
 		unsigned short seq = (cast->msgs[i].buf[0] << 8) | cast->msgs[i].buf[1];
 
 		signed short spot = -1;
@@ -148,7 +148,7 @@ struct Host* server_sync(void* server) {
 					to.sin_family = AF_INET;
 					to.sin_addr.S_un.S_addr = cast->clients[i].ip;
 					to.sin_port = cast->clients[i].port;
-					flip(res.raw, sizeof(res));
+					//flip(res.raw, sizeof(res));
 					sendto(cast->udp, res.raw, sizeof(res), 0, (struct sockaddr*)&to, sizeof(to));
 				}
 			}
@@ -175,7 +175,7 @@ void server_ping(void* server, struct Message state) {
 		sendBuf[j] = state.buf[i];
 	}
 
-	flip(sendBuf, state.len + 2);
+	//flip(sendBuf, state.len + 2);
 	for (int i = 0; i < MAX_PLAYERS; i++) {
 		if (cast->clients[i].ip != 0) {
 			struct sockaddr_in to;

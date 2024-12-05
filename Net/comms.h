@@ -42,6 +42,15 @@
 // 270 % 8 = 6
 // 135 % 8 = 7
 
+// 0 / 45 = 0;
+// 45 / 45 = 1;
+// 90 / 45 = 2;
+// 135 / 45 = 3;
+// 180 / 45 = 4;
+// 225 / 45 = 5
+// 270 / 45 = 6;
+// 315 / 45 = 7;
+
 // 315 / 8 = 39 + 3
 
 // State Binary:
@@ -86,6 +95,5 @@ union Response {
 	char raw[4];
 };
 
-void flip(char* const bin, const unsigned short sz);
 short wsa_create();
 unsigned short wsa_destroy(); 

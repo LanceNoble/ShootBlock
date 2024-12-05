@@ -1,5 +1,3 @@
-//#include <Windows.h>
-
 #include "raylib.h"
 
 #include "convert.h"
@@ -98,7 +96,6 @@ int main() {
 			p2y.raw[2] = state->buf[16];
 			p2y.raw[3] = state->buf[17];
 
-			//printf("FUCK");
 			printf("P1 Pos: %f, %f\n", unpack_float(p1x.pack), unpack_float(p1y.pack));
 			printf("P2 Pos: %f, %f\n", unpack_float(p2x.pack), unpack_float(p2y.pack));
 		}

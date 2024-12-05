@@ -138,7 +138,7 @@ unsigned short client_ping(void* client, struct Message msg) {
 
 		//printf("Sending Sequence %u\n", (sendBuf[0] << 8) | sendBuf[1]);
 		sendLen = link->val.len + 2;
-		flip(sendBuf, sendLen);
+		//flip(sendBuf, sendLen);
 		
 		struct sockaddr_in to;
 		to.sin_family = AF_INET;
@@ -173,7 +173,7 @@ struct Message* client_sync(void* client) {
 	} while (cast->server.msgs[cast->server.numMsgs].len != SOCKET_ERROR && cast->server.numMsgs < 255);
 
 	for (int i = 0; i < cast->server.numMsgs; i++) {
-		flip(cast->server.msgs[i].buf, cast->server.msgs[i].len);
+		//flip(cast->server.msgs[i].buf, cast->server.msgs[i].len);
 		if (cast->server.msgs[i].len == sizeof(union Response)) {
 			union Response res;
 			res.raw[0] = cast->server.msgs[i].buf[0];
