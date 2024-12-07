@@ -1,19 +1,22 @@
 #include "convert.h"
 
 union Pack {
-	unsigned long whole;
-	char chunks[4];
+	unsigned long bin;
+	char bytes[4];
 };
 
 void pack_float(float den, char* bin) {
 
 	// Check if the float is between 0 and 1, or the function won't return
-	// Simplicity for negligible inaccuracy
+	// Negligible inaccuracy for simplicity
 	if ((int)den == 0) {
-		return 0;
+		bin[0] = 0;
+		bin[1] = 0;
+		bin[2] = 0;
+		bin[3] = 0;
+		return;
 	}
 
-	// Extract the float's sign
 	int sign = den < 0;
 
 	// We have the float's sign, so make it absolute
@@ -22,24 +25,19 @@ void pack_float(float den, char* bin) {
 	}
 
 	unsigned int whole = (unsigned int)den;
-	float fraction = den - whole;
+	float part = den - whole;
 
-	// Convert each part to binary
-	// Since there's already a data type for ints, the computer already stores them in raw binary
-	// So we don't have to convert the whole to binary ourselves (it would be redundant)
-	// However, there's no data type for fractions, so the computer doesn't know how to store them in raw binary
-	// While floats can contain fractions, they do NOT contain a fraction's RAW binary
-	// What they really contain is the raw binary of a number's scientific notation
-	unsigned int fracBin = 0;
-	unsigned int fracWidth = 0; // Number of bits required to represent the fraction in binary
-	while (fraction != 0) {
-		fraction *= 2;
+	// Convert the part to binary
+	unsigned int partBin = 0;
+	unsigned int partWidth = 0; // Number of bits in partBin
+	while (part != 0) {
+		part *= 2;
 
-		unsigned int whole = (unsigned int)fraction;
-		fracBin |= whole << fracWidth;
-		fraction -= whole;
+		unsigned int whole = (unsigned int)part;
+		partBin |= whole << partWidth;
+		part -= whole;
 
-		fracWidth++;
+		partWidth++;
 	}
 
 	// Whole binaries go from right to left
@@ -50,10 +48,10 @@ void pack_float(float den, char* bin) {
 	// But now we do ;)
 	unsigned int revFracBin = 0;
 	unsigned int revFracWidth = 0;
-	while (fracWidth > 0) {
-		revFracBin |= ((fracBin & (1 << revFracWidth)) >> revFracWidth) << (fracWidth - 1);
+	while (partWidth > 0) {
+		revFracBin |= ((partBin & (1 << revFracWidth)) >> revFracWidth) << (partWidth - 1);
 		revFracWidth++;
-		fracWidth--;
+		partWidth--;
 	}
 
 	// Glue the two binaries together to create the raw mantissa
@@ -83,54 +81,76 @@ void pack_float(float den, char* bin) {
 	}
 
 	union Pack p;
-	p.whole = (sign << 31) | (biEx << 23) | mantissa << (23 - mantissaWidth);
-	bin[0] = p.chunks[0];
-	bin[1] = p.chunks[1];
-	bin[2] = p.chunks[2];
-	bin[3] = p.chunks[3];
+ 	p.bin = (sign << 31) | (biEx << 23) | mantissa << (23 - mantissaWidth);
+	int n = 1;
+	if (*(char*)&n) {
+		bin[0] = p.bytes[3];
+		bin[1] = p.bytes[2];
+		bin[2] = p.bytes[1];
+		bin[3] = p.bytes[0];
+	}
+	else {
+		bin[0] = p.bytes[0];
+		bin[1] = p.bytes[1];
+		bin[2] = p.bytes[2];
+		bin[3] = p.bytes[3];
+	}
 }
 
 float unpack_float(char* bin) {
 
 	// If this condition isn't checked, the function will return infinity
-	if (bin == 0)
+	if (bin == 0) {
 		return 0;
+	}
 
 	union Pack p;
-	p.chunks[0] = bin[0];
-	p.chunks[1] = bin[1];
-	p.chunks[2] = bin[2];
-	p.chunks[3] = bin[3];
+	int n = 1;
+	if (*(char*)&n) {
+		p.bytes[0] = bin[3];
+		p.bytes[1] = bin[2];
+		p.bytes[2] = bin[1];
+		p.bytes[3] = bin[0];
+	}
+	else {
+		p.bytes[0] = bin[0];
+		p.bytes[1] = bin[1];
+		p.bytes[2] = bin[2];
+		p.bytes[3] = bin[3];
+	}
 
-	unsigned int sign = (p.whole & (0b1 << 31)) >> 31;
-	unsigned int biEx = (p.whole & (0b11111111 << 23)) >> 23;
+	unsigned int sign = (p.bin & (0b00000001 << 31)) >> 31;
+	unsigned int biEx = (p.bin & (0b11111111 << 23)) >> 23;
 	unsigned int unBiEx = biEx - 127;
 
 	float mantissaDen = 1.0f;
 	float currentPlace = 0.5f;
-	unsigned int mantissaBin = p.whole & 0b11111111111111111111111;
+	unsigned int mantissaBin = p.bin & 0b11111111111111111111111;
 	signed int iMantissaBin = 22; // If this isn't signed, the loop will never end
 	while (iMantissaBin >= 0) {
-		if (((mantissaBin & (1 << iMantissaBin)) >> iMantissaBin) == 1)
+		if (((mantissaBin & (1 << iMantissaBin)) >> iMantissaBin) == 1) {
 			mantissaDen += currentPlace;
+		}
 		iMantissaBin--;
 		currentPlace /= 2;
 	}
 
 	float den = mantissaDen;
-	if (sign == 1)
+	if (sign == 1) {
 		mantissaDen *= -1;
+	}
 
 	float expander = 1;
 	float factor = 2;
 
 	if (unBiEx < 0) {
-		factor = 1 / 2;
+		factor = 0.5f;
 		unBiEx *= -1;
 	}
 	
-	for (unsigned int i = 0; i < unBiEx; i++)
+	for (unsigned int i = 0; i < unBiEx; i++) {
 		expander *= factor;
+	}
 
 	return mantissaDen * expander;
 }

@@ -49,19 +49,21 @@ int main() {
 			}
 
 			float spd = 250.0f;
-			struct Message ping;
-			ping.len = 5;
-			ping.buf[0] = deg / 45;
+			char input[5];
+			input[0] = deg / 45;
 			
-
-			pack_float(spd * GetFrameTime(), ping.buf + 1);
-			client_ping(client, ping);
+			//printf("packing");
+			pack_float(spd * GetFrameTime(), input + 1);
+			client_ping(client, input);
 		}
+		
+		/*
 		struct Message* potentialState = client_sync(client);
 		if (potentialState != NULL) {
 			state = potentialState;
 		}
 		if (state != NULL) {
+			//printf("unpacking");
 			Vector2 p1Pos;
 			p1Pos.x = unpack_float(state->buf + 2);
 			p1Pos.y = -unpack_float(state->buf + 6);
@@ -76,7 +78,8 @@ int main() {
 			//printf("P1 Pos: %f, %f\n", unpack_float(p1x.pack), unpack_float(p1y.pack));
 			//printf("P2 Pos: %f, %f\n", unpack_float(p2x.pack), unpack_float(p2y.pack));
 		}
-
+		*/
+		//printf("looping");
 		EndDrawing();
 	}
 

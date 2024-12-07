@@ -17,18 +17,34 @@ struct Player {
 int main() {
 	clock_t t = 0;
 
-	void* server = server_create(3490);
-	struct Message state;
-	struct Player ps[MAX_PLAYERS];
-	ps[0].x = 0;
-	ps[0].y = 0;
-	ps[1].x = 0;
-	ps[1].y = 0;
+	struct Server* server = server_create(3490);
+	struct Player players[2];
+	players[0].x = 0;
+	players[0].y = 0;
+	players[1].x = 0;
+	players[1].y = 0;
+	char inputBuf[256];
 
-	state.len = 16;
 	while (!(GetAsyncKeyState(VK_END) & 0x01)) {
-		struct Host* players = server_sync(server);
+		server_sync(server, inputBuf);
 		
+		unsigned char* i = inputBuf;
+		while (*i != '\0') {
+			int player = (*i & 0b10000000) >> 7;
+			int numBytes = *i & 0b01111111;
+			int seq = (i[1] << 8) | i[2];
+			int dir = i[3] * 45;
+			float mag = unpack_float(i + 4);
+
+
+			//printf("Sequence %i: %i bytes from p%i\n", (i[1] << 8) | i[2], numBytes, (*i & 0b10000000) >> 7);
+			printf("p%i move %i at %f\n", player, dir, mag);
+
+
+			i += numBytes + 1;
+		}
+
+		/*
 		for (int i = 0; i < MAX_PLAYERS; i++) {
 			for (int j = 0; j < players[i].numMsgs; j++) {
 				float mag = unpack_float(players[i].msgs[j].buf + 3);
@@ -45,8 +61,8 @@ int main() {
 			}
 		}
 
-		if ((clock() - t) / CLOCKS_PER_SEC >= 2) {
-			t = clock();
+		if ((clock() - t) / CLOCKS_PER_SEC >= 0) {
+			//t = clock();
 			struct Message m;
 			m.len = 16;
 
@@ -57,6 +73,9 @@ int main() {
 
 			server_ping(server, m);
 		}
+		*/
+
+		//printf("looping");
 	}
 
 	/*

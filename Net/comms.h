@@ -1,6 +1,4 @@
-#define MAX_PLAYERS 2
-
-#define TIMEOUT_HOST 120
+#define TIMEOUT_HOST 600
 #define TIMEOUT_PACKET 2
 
 // Input Binary:
@@ -49,23 +47,13 @@
 //			4 Bytes (x and y coord)
 //		Bytes 0 - 1: Position
 
+/*
 // A datagram's payload
 struct Message {
 	int len; // Number of bytes delivered
 	unsigned char buf[32]; // The actual bytes
 };
-
-// Information necessary to talk to a host via UDP
-struct Host {
-	unsigned long ip;
-	unsigned short port;
-	
-	long time;
-	unsigned short seq;
-
-	int numMsgs;
-	struct Message* msgs;
-};
+*/
 
 union Response {
 	struct { 

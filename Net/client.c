@@ -9,19 +9,21 @@
 struct Input {
 	unsigned short seq;
 	long time;
-	struct Message val;
+	char val[5];
 
 	struct Input* next;
 };
 
 struct Client {
 	WSADATA wsa;
-
 	SOCKET udp;
 	unsigned short seq;
 	unsigned short ack;
 
-	struct Host server;
+	struct sockaddr_in addr;
+	clock_t time;
+	unsigned short remSeq;
+
 	struct Input* firstIn;
 	struct Input* lastIn;
 };
@@ -38,19 +40,14 @@ struct Client* client_create(const char* const ip, const unsigned short port) {
 		return NULL;
 	}
 
-	client->server.numMsgs = 0;
-	client->server.msgs = malloc(sizeof(struct Message) * 255);
-	if (client->server.msgs == NULL) {
-		printf("Client Creation Fail: No Memory\n");
-		client_destroy(client);
-		return NULL;
-	}
-
 	// Server only accepts sequences greater than the most recent sequence it received
 	// So 
 	client->seq = 1;
 	client->ack = 0;
-	client->server.ip = 0;
+
+	client->addr.sin_family = AF_INET;
+	client->addr.sin_addr.S_un.S_addr = 0;
+	client->addr.sin_port;
 	const unsigned char* letter = ip;
 	signed char len = 0;
 	while (*letter != '\0') {
@@ -63,7 +60,7 @@ struct Client* client_create(const char* const ip, const unsigned short port) {
 	unsigned char bit = 24;
 	while (len > 0) {
 		if (*letter == '.') {
-			client->server.ip |= (val << bit);
+			client->addr.sin_addr.S_un.S_addr |= (val << bit);
 			digit = 0;
 			val = 0;
 			bit -= 8;
@@ -79,10 +76,10 @@ struct Client* client_create(const char* const ip, const unsigned short port) {
 		len--;
 		letter--;
 	}
-	client->server.ip |= val;
-	client->server.port = htons(port);
-	client->server.time = clock();
-	client->server.seq = 0;
+	client->addr.sin_addr.S_un.S_addr |= val;
+	client->addr.sin_port = htons(port);
+	client->time = clock();
+	client->remSeq = 0;
 	client->firstIn = NULL;
 	client->lastIn = NULL;
 
@@ -113,12 +110,8 @@ struct Client* client_create(const char* const ip, const unsigned short port) {
 	return client;
 }
 
-unsigned short client_ping(struct Client* client, struct Message msg) {
-	short res = 0;
-	client;
-
-	int sendLen = 0;
-	unsigned char sendBuf[8];
+void client_ping(struct Client* client, char* input) {
+	unsigned char sendBuf[7];
 	sendBuf[0] = (client->seq & (0xff << 8)) >> 8;
 	sendBuf[1] = client->seq & 0xff;
 
@@ -136,40 +129,27 @@ unsigned short client_ping(struct Client* client, struct Message msg) {
 		link->seq = client->seq;
 		link->time = clock();
 		link->next = NULL;
-		link->val.len = msg.len;
 
-		for (int i = 2, j = 0; i < link->val.len + 2; i++, j++) {
-			link->val.buf[j] = msg.buf[j];
-			sendBuf[i] = link->val.buf[j];
+		for (int i = 2, j = 0; i < 7; i++, j++) {
+			link->val[j] = input[j];
+			sendBuf[i] = link->val[j];
 		}
 
 		//printf("Sending Sequence %u\n", (sendBuf[0] << 8) | sendBuf[1]);
-		sendLen = link->val.len + 2;
-		
-		struct sockaddr_in to;
-		to.sin_family = AF_INET;
-		to.sin_addr.S_un.S_addr = client->server.ip;
-		to.sin_port = client->server.port;
-
-
-		res = sendto(client->udp, sendBuf, sendLen, 0, (struct sockaddr*)&to, sizeof(struct sockaddr));
+		sendto(client->udp, sendBuf, 7, 0, (struct sockaddr*)&client->addr, sizeof(struct sockaddr));
+		//printf("%i\n", WSAGetLastError());
 		client->seq++;
 	}
-
-	if (res == SOCKET_ERROR) {
-		return WSAGetLastError();
-	}
-	return res;
 }
-
-struct Message* client_sync(struct Client* client) {
-	struct Message* state = NULL;
-	//state.len = 0;
-
+/*
+void client_sync(struct Client* client, char* state) {
 	struct sockaddr_in from;
 	int fromLen = sizeof(struct sockaddr);
-	client->server.numMsgs = 0;
 	
+	while (1) {
+
+	}
+
 	do {
 		client->server.msgs[client->server.numMsgs].len = recvfrom(client->udp, client->server.msgs[client->server.numMsgs].buf, 32, 0, (struct sockaddr*)&from, &fromLen);
 		if (client->server.msgs[client->server.numMsgs].len != SOCKET_ERROR) {
@@ -218,21 +198,19 @@ struct Message* client_sync(struct Client* client) {
 		client->server.time = clock();
 	}
 
-	if ((clock() - client->server.time) / CLOCKS_PER_SEC >= TIMEOUT_HOST) {
+	if ((clock() - time) / CLOCKS_PER_SEC >= TIMEOUT_HOST) {
 		client_destroy(client);
 		return state;
 	}
 
 	if (client->firstIn != NULL && (clock() - client->firstIn->time) / CLOCKS_PER_SEC >= TIMEOUT_PACKET) {
-		//printf("Sequence %i not acknowledged. Resending...\n", cast->firstIn->seq);
 		struct Input* del = client->firstIn;
 		client->firstIn = client->firstIn->next;
 		client_ping(client, del->val);
 		free(del);
 	}
-
-	return state;
 }
+*/
 
 static void input_destroy(struct Input* in) {
 	if (in == NULL) {
