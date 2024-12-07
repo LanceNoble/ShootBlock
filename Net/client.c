@@ -136,7 +136,7 @@ void client_ping(struct Client* client, unsigned char* input) {
 		}
 
 		
-		printf("Sending Sequence %u\n", (input[0] << 8) | input[1]);
+		//printf("Sending Sequence %u\n", (input[0] << 8) | input[1]);
 		sendto(client->udp, input, 7, 0, (struct sockaddr*)&client->addr, sizeof(struct sockaddr));
 		//printf("%i\n", WSAGetLastError());
 		client->seq++;

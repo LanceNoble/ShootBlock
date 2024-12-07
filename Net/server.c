@@ -27,21 +27,9 @@ struct Server {
 struct Server* server_create(const unsigned short port) {
 	struct Server* server = malloc(sizeof(struct Server));
 	if (server == NULL || WSAStartup(MAKEWORD(2, 2), &server->wsa) != 0) {
+		server_destroy(server);
 		return NULL;
 	}
-	server->seq = 1;
-
-	server->client1.addr.sin_family = AF_INET;
-	server->client1.addr.sin_addr.S_un.S_addr = INADDR_ANY;
-	server->client1.addr.sin_port = 0;
-	server->client1.time = 0;
-	server->client1.seq = 0;
-
-	server->client2.addr.sin_family = AF_INET;
-	server->client2.addr.sin_addr.S_un.S_addr = INADDR_ANY;
-	server->client2.addr.sin_port = 0;
-	server->client2.time = 0;
-	server->client2.seq = 0;
 
 	server->udp = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
 	if (server->udp == INVALID_SOCKET) {
@@ -59,16 +47,31 @@ struct Server* server_create(const unsigned short port) {
 	binder.sin_family = AF_INET;
 	binder.sin_addr.S_un.S_addr = INADDR_ANY;
 	binder.sin_port = htons(port);
-	if (bind(server->udp, (struct sockaddr*)&binder, sizeof(struct sockaddr)) == SOCKET_ERROR) {
+	if (bind(server->udp, (struct sockaddr*)&binder, sizeof(binder)) == SOCKET_ERROR) {
 		server_destroy(server);
 		return NULL;
 	}
+
+	server->seq = 1;
+
+	server->client1.addr.sin_family = AF_INET;
+	server->client1.addr.sin_addr.S_un.S_addr = INADDR_ANY;
+	server->client1.addr.sin_port = 0;
+	server->client1.time = 0;
+	server->client1.seq = 0;
+
+	server->client2.addr.sin_family = AF_INET;
+	server->client2.addr.sin_addr.S_un.S_addr = INADDR_ANY;
+	server->client2.addr.sin_port = 0;
+	server->client2.time = 0;
+	server->client2.seq = 0;
 	
 	return server;
 }
 
-void server_sync(struct Server* server, char* inputs) {
-	char* ptr = inputs;
+
+void server_sync(struct Server* server, unsigned char* buf) {
+	char* ptr = buf;
 	unsigned char* len;
 	struct Host* sender = NULL;
 	struct Host* introvert = NULL;
@@ -110,7 +113,7 @@ void server_sync(struct Server* server, char* inputs) {
 		}
 
 		unsigned short seq = (len[1] << 8) | len[2];
-		printf("%i\n", seq);
+		//printf("%i\n", seq);
 		if (sender != NULL && seq > sender->seq) {
 			sender->seq = seq;
 			sender->time = clock();
