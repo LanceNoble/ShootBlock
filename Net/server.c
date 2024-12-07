@@ -10,6 +10,9 @@ struct Host {
 	struct sockaddr_in addr;
 	clock_t time;
 	unsigned short seq;
+
+	int numSeqs;
+	unsigned short seqs[16];
 };
 
 struct Server {
@@ -66,20 +69,21 @@ struct Server* server_create(const unsigned short port) {
 
 void server_sync(struct Server* server, char* inputs) {
 	char* ptr = inputs;
-	char* len;
+	unsigned char* len;
 	struct Host* sender = NULL;
 	struct Host* introvert = NULL;
 	struct sockaddr_in from;
 	int fromlen = sizeof(struct sockaddr);
 	int numMsgs = 0;
+	server->client1.numSeqs = 0;
+	server->client2.numSeqs = 0;
 
 	while (1) {
 		len = ptr++;
 		*len = recvfrom(server->udp, ptr, 8, 0, (struct sockaddr*)&from, &fromlen);
-		if (*len == SOCKET_ERROR || numMsgs == 16) {
+		if (*len == (unsigned char)SOCKET_ERROR || numMsgs == 16) {
 			break;
 		}
-		//printf("Y");
 		ptr += *len;
 
 		if (from.sin_addr.S_un.S_addr == server->client1.addr.sin_addr.S_un.S_addr && from.sin_port == server->client1.addr.sin_port) {
@@ -106,62 +110,56 @@ void server_sync(struct Server* server, char* inputs) {
 		}
 
 		unsigned short seq = (len[1] << 8) | len[2];
+		printf("%i\n", seq);
 		if (sender != NULL && seq > sender->seq) {
 			sender->seq = seq;
 			sender->time = clock();
+			sender->seqs[sender->numSeqs++] = seq;
+			numMsgs++;
+		}
+		else {
+			ptr -= *len & 0b01111111;
 		}
 
+		if (sender != NULL && sender->addr.sin_addr.S_un.S_addr != 0 && (clock() - sender->time) / CLOCKS_PER_SEC >= TIMEOUT_HOST) {
+			sender->addr.sin_addr.S_un.S_addr = 0;
+			sender->addr.sin_port = 0;
+			sender->time = 0;
+			sender->seq = 0;
+		}
 		if (introvert != NULL && introvert->addr.sin_addr.S_un.S_addr != 0 && (clock() - introvert->time) / CLOCKS_PER_SEC >= TIMEOUT_HOST) {
 			introvert->addr.sin_addr.S_un.S_addr = 0;
 			introvert->addr.sin_port = 0;
 			introvert->time = 0;
 			introvert->seq = 0;
 		}
-
-		numMsgs++;
 	}
 	*len = '\0';
 
-	/*
-	int numClient1Seqs = 0;
-	int numClient2Seqs = 0;
-	unsigned short client1Seqs[16];
-	unsigned short client2Seqs[16];
-
-	for (int i = 0; i < numMsgs; i++) {
-		unsigned short seq = (inputs[1] << 8) | inputs[2];
-		if (*inputs & 0b10000000) {
-			client2Seqs[numClient2Seqs++] = seq;
-		}
-		else {
-			client1Seqs[numClient1Seqs++] = seq;
-		}
-		inputs += (*inputs & 0b01111111) + 1;
-	}
-
 	union Response res;
-	for (int i = 0; i < numClient1Seqs;) {
-		res.ack = client1Seqs[i];
+	res.ack = 0;
+	res.bit = 0;
+	for (int i = 0; i < server->client1.numSeqs;) {
+		res.ack = server->client1.seqs[i];
 		res.bit = 0;
-		while (++i < numClient1Seqs && client1Seqs[i] <= res.ack + 16) {
-			res.bit &= (1 << (client1Seqs[i] - res.ack - 1));
+		while (++i < server->client1.numSeqs && server->client1.seqs[i] <= res.ack + 16) {
+			res.bit &= (1 << (server->client1.seqs[i] - res.ack - 1));
 		}
 		for (int i = 0; i < 17; i++) {
 			sendto(server->udp, res.raw, sizeof(res), 0, (struct sockaddr*)&server->client1.addr, sizeof(struct sockaddr));
 		}
 	}
 
-	for (int i = 0; i < numClient2Seqs; i++) {
-		res.ack = client2Seqs[i];
+	for (int i = 0; i < server->client2.numSeqs;) {
+		res.ack = server->client2.seqs[i];
 		res.bit = 0;
-		while (++i < numClient2Seqs && client2Seqs[i] <= res.ack + 16) {
-			res.bit &= (1 << (client2Seqs[i] - res.ack - 1));
+		while (++i < server->client2.numSeqs && server->client2.seqs[i] <= res.ack + 16) {
+			res.bit &= (1 << (server->client2.seqs[i] - res.ack - 1));
 		}
 		for (int i = 0; i < 17; i++) {
 			sendto(server->udp, res.raw, sizeof(res), 0, (struct sockaddr*)&server->client2.addr, sizeof(struct sockaddr));
 		}
 	}
-	*/
 }
 
 /*

@@ -38,12 +38,13 @@ int main() {
 
 
 			//printf("Sequence %i: %i bytes from p%i\n", (i[1] << 8) | i[2], numBytes, (*i & 0b10000000) >> 7);
-			printf("p%i move %i at %f\n", player, dir, mag);
-
+			//printf("p%i move %i at %f\n", player, dir, mag);
+			players[player].x += cos(dir * PI / 180) * mag;
+			players[player].y += sin(dir * PI / 180) * mag;
 
 			i += numBytes + 1;
 		}
-
+		
 		/*
 		for (int i = 0; i < MAX_PLAYERS; i++) {
 			for (int j = 0; j < players[i].numMsgs; j++) {

@@ -49,14 +49,15 @@ int main() {
 			}
 
 			float spd = 250.0f;
-			char input[5];
-			input[0] = deg / 45;
+			char input[7];
+			input[2] = deg / 45;
 			
-			//printf("packing");
-			pack_float(spd * GetFrameTime(), input + 1);
+			pack_float(spd * GetFrameTime(), input + 3);
 			client_ping(client, input);
 		}
-		
+
+		char state[1024];
+		client_sync(client, state);
 		/*
 		struct Message* potentialState = client_sync(client);
 		if (potentialState != NULL) {
