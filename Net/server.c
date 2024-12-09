@@ -69,51 +69,45 @@ struct Server* server_create(const unsigned short port) {
 	return server;
 }
 
-
 void server_sync(struct Server* server, unsigned char* buf) {
-	char* ptr = buf;
-	unsigned char* len;
-	struct Host* sender = NULL;
-	struct Host* introvert = NULL;
+	unsigned char* i = buf;
+	unsigned char* meta; // unsigned since we control the first bit to represent who sent the message
+	int numMsgs = 0;
+
+	struct Host* sender;
 	struct sockaddr_in from;
 	int fromlen = sizeof(struct sockaddr);
-	int numMsgs = 0;
+
 	server->client1.numSeqs = 0;
 	server->client2.numSeqs = 0;
 
-	while (1) {
-		len = ptr++;
-		*len = recvfrom(server->udp, ptr, 8, 0, (struct sockaddr*)&from, &fromlen);
-		if (*len == (unsigned char)SOCKET_ERROR || numMsgs == 16) {
-			break;
-		}
-		ptr += *len;
+	do {
+		sender = NULL;
 
-		if (from.sin_addr.S_un.S_addr == server->client1.addr.sin_addr.S_un.S_addr && from.sin_port == server->client1.addr.sin_port) {
+		meta = i++;
+		*meta = recvfrom(server->udp, i, 8, 0, (struct sockaddr*)&from, &fromlen);
+		i += *meta;
+
+		if (*meta != (unsigned char)SOCKET_ERROR && from.sin_addr.S_un.S_addr == server->client1.addr.sin_addr.S_un.S_addr && from.sin_port == server->client1.addr.sin_port) {
 			sender = &server->client1;
-			introvert = &server->client2;
 		}
-		else if (from.sin_addr.S_un.S_addr == server->client2.addr.sin_addr.S_un.S_addr && from.sin_port == server->client2.addr.sin_port) {
+		else if (*meta != (unsigned char)SOCKET_ERROR && from.sin_addr.S_un.S_addr == server->client2.addr.sin_addr.S_un.S_addr && from.sin_port == server->client2.addr.sin_port) {
 			sender = &server->client2;
-			introvert = &server->client1;
-			*len |= 0b10000000;
+			*meta |= 0b10000000;
 		}
-		else if (server->client1.addr.sin_addr.S_un.S_addr == 0) {
+		else if (*meta != (unsigned char)SOCKET_ERROR && server->client1.addr.sin_addr.S_un.S_addr == 0) {
 			server->client1.addr.sin_addr.S_un.S_addr = from.sin_addr.S_un.S_addr;
 			server->client1.addr.sin_port = from.sin_port;
 			sender = &server->client1;
-			introvert = &server->client2;
 		}
-		else if (server->client2.addr.sin_addr.S_un.S_addr == 0) {
+		else if (*meta != (unsigned char)SOCKET_ERROR && server->client2.addr.sin_addr.S_un.S_addr == 0) {
 			server->client2.addr.sin_addr.S_un.S_addr = from.sin_addr.S_un.S_addr;
 			server->client2.addr.sin_port = from.sin_port;
 			sender = &server->client2;
-			introvert = &server->client1;
-			*len |= 0b10000000;
+			*meta |= 0b10000000;
 		}
 
-		unsigned short seq = (len[1] << 8) | len[2];
-		//printf("%i\n", seq);
+		unsigned short seq = (meta[1] << 8) | meta[2];
 		if (sender != NULL && seq > sender->seq) {
 			sender->seq = seq;
 			sender->time = clock();
@@ -121,27 +115,26 @@ void server_sync(struct Server* server, unsigned char* buf) {
 			numMsgs++;
 		}
 		else {
-			ptr -= *len & 0b01111111;
+			i = meta;
 		}
 
-		if (sender != NULL && sender->addr.sin_addr.S_un.S_addr != 0 && (clock() - sender->time) / CLOCKS_PER_SEC >= TIMEOUT_HOST) {
-			sender->addr.sin_addr.S_un.S_addr = 0;
-			sender->addr.sin_port = 0;
-			sender->time = 0;
-			sender->seq = 0;
+		if ((clock() - server->client1.time) / CLOCKS_PER_SEC >= TIMEOUT_HOST) {
+			server->client1.addr.sin_addr.S_un.S_addr = 0;
+			server->client1.addr.sin_port = 0;
+			server->client1.time = 0;
+			server->client1.seq = 0;
 		}
-		if (introvert != NULL && introvert->addr.sin_addr.S_un.S_addr != 0 && (clock() - introvert->time) / CLOCKS_PER_SEC >= TIMEOUT_HOST) {
-			introvert->addr.sin_addr.S_un.S_addr = 0;
-			introvert->addr.sin_port = 0;
-			introvert->time = 0;
-			introvert->seq = 0;
+
+		if ((clock() - server->client2.time) / CLOCKS_PER_SEC >= TIMEOUT_HOST) {
+			server->client2.addr.sin_addr.S_un.S_addr = 0;
+			server->client2.addr.sin_port = 0;
+			server->client2.time = 0;
+			server->client2.seq = 0;
 		}
-	}
-	*len = '\0';
+	} while (*meta != (unsigned char)SOCKET_ERROR && numMsgs < 16);
+	*meta = '\0';
 
 	union Response res;
-	res.ack = 0;
-	res.bit = 0;
 	for (int i = 0; i < server->client1.numSeqs;) {
 		res.ack = server->client1.seqs[i];
 		res.bit = 0;
@@ -165,32 +158,19 @@ void server_sync(struct Server* server, unsigned char* buf) {
 	}
 }
 
-/*
-void server_ping(struct Server* server, struct Message state) {
+void server_ping(struct Server* server, unsigned char* buf) {
+	buf[0] = (server->seq & (0xff << 8)) >> 8;
+	buf[1] = server->seq & 0xff;
 
-	unsigned char sendBuf[32];
-	sendBuf[0] = (server->seq & (0xff << 8)) >> 8;
-	sendBuf[1] = server->seq & 0xff;
-	for (int i = 0, j = 2; i < state.len; i++, j++) {
-		sendBuf[j] = state.buf[i];
+	for (int i = 0; i < 17; i++) {
+		sendto(server->udp, buf, 18, 0, (struct sockaddr*)&server->client1.addr, sizeof(struct sockaddr));
+	}
+	for (int i = 0; i < 17; i++) {
+		sendto(server->udp, buf, 18, 0, (struct sockaddr*)&server->client2.addr, sizeof(struct sockaddr));
 	}
 
-	for (int i = 0; i < MAX_PLAYERS; i++) {
-		if (server->clients[i].ip != 0) {
-			struct sockaddr_in to;
-			to.sin_family = AF_INET;
-			to.sin_addr.S_un.S_addr = server->clients[i].ip;
-			to.sin_port = server->clients[i].port;
-
-			sendto(server->udp, sendBuf, state.len + 2, 0, (struct sockaddr*)&to, sizeof(struct sockaddr));
-			//for (int i = 0; i < 17; i++) {
-			//	sendto(server->udp, sendBuf, state.len + 2, 0, (struct sockaddr*)&to, sizeof(struct sockaddr));
-			//}
-			server->seq++;
-		}
-	}
+	server->seq++;
 }
-*/
 
 void server_destroy(struct Server* server) {
 	free(server);

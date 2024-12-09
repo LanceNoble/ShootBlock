@@ -1,4 +1,4 @@
 #pragma once
 
-void pack_float(float den, char* bin);
-float unpack_float(char* bin);
+void pack_float(float den, unsigned char* bin);
+float unpack_float(unsigned char* bin);

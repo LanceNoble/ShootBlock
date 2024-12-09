@@ -15,84 +15,43 @@ struct Player {
 };
 
 int main() {
-	clock_t t = 0;
-
 	struct Server* server = server_create(3490);
 	struct Player players[2];
+
 	players[0].x = 0;
 	players[0].y = 0;
 	players[1].x = 0;
 	players[1].y = 0;
-	char inputBuf[256];
 
+	char buf[1024];
+	char state[18];
 	while (!(GetAsyncKeyState(VK_END) & 0x01)) {
-		server_sync(server, inputBuf);
-		
-		unsigned char* i = inputBuf;
+		server_sync(server, buf);
+
+		unsigned char* i = buf;
 		while (*i != '\0') {
 			int player = (*i & 0b10000000) >> 7;
 			int numBytes = *i & 0b01111111;
 			int seq = (i[1] << 8) | i[2];
+
 			int dir = i[3] * 45;
 			float mag = unpack_float(i + 4);
 
+			players[player].x += (float)cos(dir * PI / 180) * mag;
+			players[player].y -= (float)sin(dir * PI / 180) * mag;
 
-			//printf("Sequence %i: %i bytes from p%i\n", (i[1] << 8) | i[2], numBytes, (*i & 0b10000000) >> 7);
-			//printf("p%i move %i at %f\n", player, dir, mag);
-			players[player].x += cos(dir * PI / 180) * mag;
-			players[player].y += sin(dir * PI / 180) * mag;
+			printf("%i bytes from p%i seq %i: %f, %f\n", numBytes, player, seq, players[0].x, players[0].y);
+			//printf("p2: %f, %f\n", players[1].x, players[1].y);
 
 			i += numBytes + 1;
 		}
-		
-		/*
-		for (int i = 0; i < MAX_PLAYERS; i++) {
-			for (int j = 0; j < players[i].numMsgs; j++) {
-				float mag = unpack_float(players[i].msgs[j].buf + 3);
 
-				
-				float xOff = cos(players[i].msgs[j].buf[2] * 45 * PI / 180);
-				float yOff = sin(players[i].msgs[j].buf[2] * 45 * PI / 180);
-
-				ps[i].x += xOff * mag;
-				ps[i].y += yOff * mag;
-
-				//printf("p%i pos: %f, %f\n", i, ps[i].x, ps[i].y);
-				//printf("p%i move dir %i mag %f\n", i, players[i].msgs[j].buf[2], mag);
-			}
-		}
-
-		if ((clock() - t) / CLOCKS_PER_SEC >= 0) {
-			//t = clock();
-			struct Message m;
-			m.len = 16;
-
-			pack_float(ps[0].x, m.buf);
-			pack_float(ps[0].y, m.buf + 4);
-			pack_float(ps[1].x, m.buf + 8);
-			pack_float(ps[1].y, m.buf + 12);
-
-			server_ping(server, m);
-		}
-		*/
-
-		//printf("looping");
+		//printf("l");
+		//pack_float(players[0].x, state + 2);
+		//pack_float(players[0].y, state + 6);
+		//pack_float(players[1].x, state + 10);
+		//pack_float(players[1].y, state + 14);
+		//
+		//server_ping(server, state);
 	}
-
-	/*
-	if (res != 0) {
-		printf("Server Died\n");
-		server_destroy(&server);
-		wsa_destroy();
-		return res;
-	}
-
-	while (!(GetAsyncKeyState(VK_END) & 0x01)) {
-		server_sync(server);
-		server_ping(server);
-	}
-
-	server_destroy(&server);
-	wsa_destroy();
-	*/	
 }

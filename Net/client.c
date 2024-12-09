@@ -110,11 +110,12 @@ struct Client* client_create(const char* const ip, const unsigned short port) {
 	return client;
 }
 
-void client_ping(struct Client* client, unsigned char* input) {
-	input[0] = 0;
-	input[1] = 0;
-	input[0] = (client->seq & (0xff << 8)) >> 8;
-	input[1] = client->seq & 0xff;
+void client_ping(struct Client* client, unsigned char* buf) {
+	buf[0] = 0;
+	buf[1] = 0;
+
+	buf[0] = (client->seq & (0xff << 8)) >> 8;
+	buf[1] = client->seq & 0xff;
 
 	struct Input* link = malloc(sizeof(struct Input));
 	if (link != NULL) {
@@ -132,38 +133,31 @@ void client_ping(struct Client* client, unsigned char* input) {
 		link->next = NULL;
 
 		for (int i = 0; i < 7; i++) {
-			link->val[i] = input[i];
+			link->val[i] = buf[i];
 		}
 
-		
-		//printf("Sending Sequence %u\n", (input[0] << 8) | input[1]);
-		sendto(client->udp, input, 7, 0, (struct sockaddr*)&client->addr, sizeof(struct sockaddr));
-		//printf("%i\n", WSAGetLastError());
+		printf("%i\n", client->seq);
+		sendto(client->udp, buf, 7, 0, (struct sockaddr*)&client->addr, sizeof(struct sockaddr));
 		client->seq++;
-		//printf("Sequence is now %i\n", client->seq);
 	}
 }
 
-void client_sync(struct Client* client, char* state) {
-	char* ptr = state;
-	char* len;
+void client_sync(struct Client* client, char* buf, char** state) {
+	char* i = buf;
+	unsigned char* meta;
 	int numMsgs = 0;
-	
-	while (1) {
-		len = ptr++;
-		*len = recvfrom(client->udp, ptr, 18, 0, NULL, NULL);
-		if (len == SOCKET_ERROR || numMsgs == 16) {
-			break;
-		}
-		client->time = clock();
-		ptr += *len;
 
-		if (*len == sizeof(union Response)) {
+	do {
+		meta = i++;
+		*meta = recvfrom(client->udp, i, 32, 0, NULL, NULL);
+		i += *meta;
+
+		if (*meta == sizeof(union Response)) {
 			union Response res;
-			res.raw[0] = len[1];
-			res.raw[1] = len[2];
-			res.raw[2] = len[3];
-			res.raw[3] = len[4];
+			res.raw[0] = meta[1];
+			res.raw[1] = meta[2];
+			res.raw[2] = meta[3];
+			res.raw[3] = meta[4];
 
 			if (res.ack > client->ack) {
 				for (int i = 0; i < 17; i++) {
@@ -180,11 +174,10 @@ void client_sync(struct Client* client, char* state) {
 							struct Input* del = client->firstIn;
 							client->firstIn = client->firstIn->next;
 							if (del->seq < ack) {
-								//printf("f");
 								client_ping(client, del->val);
 							}
 							else {
-								//printf("Sequence %i Acknowledged\n", ack);
+								printf("%i\n", del->seq);
 							}
 							free(del);
 						}
@@ -192,40 +185,27 @@ void client_sync(struct Client* client, char* state) {
 				}
 			}
 		}
-
-		/*
-		else {
-			unsigned short seq = (len[1] << 8) | len[2];
+		else if (*meta != (unsigned char)SOCKET_ERROR) {
+			unsigned short seq = (meta[1] << 8) | meta[2];
 			if (seq > client->remSeq) {
-				client->seq = 
+				*state = meta;
+				client->remSeq = seq;
+				client->time = clock();
+				numMsgs++;
+			}
+			else {
+				i = meta;
 			}
 		}
-		*/
-
-		numMsgs++;
-	}
-
-	/*
-	for (int i = 0; i < client->server.numMsgs; i++) {
-		else if (client->server.msgs[i].len > sizeof(union Response)) {
-			unsigned short seq = (client->server.msgs[i].buf[0] << 8) | client->server.msgs[i].buf[1];
-			if (seq > client->server.seq) {
-				state = &(client->server.msgs[i]);
-				client->server.seq = seq;
-			}
-		}
-		client->server.time = clock();
-	}
-	*/
-
+	} while (*meta != (unsigned char)SOCKET_ERROR && numMsgs < 32);
+	*meta = '\0';
+	
 	if ((clock() - client->time) / CLOCKS_PER_SEC >= TIMEOUT_HOST) {
 		client_destroy(client);
 		return;
 	}
 
 	if (client->firstIn != NULL && (clock() - client->firstIn->time) / CLOCKS_PER_SEC >= TIMEOUT_PACKET) {
-		//printf("resending\n");
-		
 		struct Input* del = client->firstIn;
 		client->firstIn = client->firstIn->next;
 		client_ping(client, del->val);

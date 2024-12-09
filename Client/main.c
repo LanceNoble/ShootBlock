@@ -8,13 +8,14 @@
 #include <stdio.h>
 
 int main() {
-	
-	struct Message* state = NULL;
 	void* client = client_create("127.0.0.1", 3490);
 	SetConfigFlags(FLAG_VSYNC_HINT | FLAG_WINDOW_HIGHDPI);
 	InitWindow(1280, 800, "ShootBlock");
-	
-	while (!(WindowShouldClose())) {
+
+	char buf[1024];
+	char input[7];
+	int i = 0;
+	while (!WindowShouldClose()) {
 		BeginDrawing();
 		ClearBackground(BLACK);
 
@@ -34,13 +35,12 @@ int main() {
 		}
 
 		if (xOff != 0 || yOff != 0) {
-			//printf("moving\n");
-			float mag = sqrt(pow(xOff, 2) + pow(yOff, 2));
+			float mag = (float)sqrt(pow(xOff, 2) + pow(yOff, 2));
 			xOff /= mag;
 			yOff /= mag;
 
-			float rad = atan(yOff / xOff);
-			int deg = (rad * 180) / PI;
+			float rad = (float)atan(yOff / xOff);
+			float deg = (rad * 180) / PI;
 			if (xOff < 0) {
 				deg += 180;
 			}
@@ -49,15 +49,23 @@ int main() {
 			}
 
 			float spd = 250.0f;
-			char input[7];
-			input[2] = deg / 45;
+			input[2] = (int)(deg / 45);
 			
 			pack_float(spd * GetFrameTime(), input + 3);
+			//unpack_float(input + 3);
+			//printf("%f\n", unpack_float(input + 3));
+			//printf("%i\n", i);
+			//i++;
 			client_ping(client, input);
 		}
+		
+		//unsigned char* state = NULL;
+		//client_sync(client, buf, &state);
+		//if (state != NULL) {
+		//	printf("%i\n", *state);
+		//}
+		//printf("looping\n");
 
-		char state[1024];
-		client_sync(client, state);
 		/*
 		struct Message* potentialState = client_sync(client);
 		if (potentialState != NULL) {

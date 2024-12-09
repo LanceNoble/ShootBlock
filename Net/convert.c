@@ -5,7 +5,7 @@ union Pack {
 	char bytes[4];
 };
 
-void pack_float(float den, char* bin) {
+void pack_float(float den, unsigned char* bin) {
 
 	// Check if the float is between 0 and 1, or the function won't return
 	// Negligible inaccuracy for simplicity
@@ -60,8 +60,10 @@ void pack_float(float den, char* bin) {
 
 	// Normalize the raw mantissa
 	unsigned int normalizer = 31;
-	while (((denBin & (1 << normalizer)) >> normalizer) != 1)
+	while (((denBin & (1 << normalizer)) >> normalizer) != 1) {
 		normalizer--;
+	}
+		
 
 	// Will need this later to pad the mantissa bits
 	unsigned int mantissaWidth = normalizer;
@@ -82,7 +84,7 @@ void pack_float(float den, char* bin) {
 
 	union Pack p;
  	p.bin = (sign << 31) | (biEx << 23) | mantissa << (23 - mantissaWidth);
-	int n = 1;
+	int n = 0;
 	if (*(char*)&n) {
 		bin[0] = p.bytes[3];
 		bin[1] = p.bytes[2];
@@ -97,7 +99,7 @@ void pack_float(float den, char* bin) {
 	}
 }
 
-float unpack_float(char* bin) {
+float unpack_float(unsigned char* bin) {
 
 	// If this condition isn't checked, the function will return infinity
 	if (bin == 0) {
@@ -105,7 +107,7 @@ float unpack_float(char* bin) {
 	}
 
 	union Pack p;
-	int n = 1;
+	int n = 0;
 	if (*(char*)&n) {
 		p.bytes[0] = bin[3];
 		p.bytes[1] = bin[2];
@@ -121,13 +123,14 @@ float unpack_float(char* bin) {
 
 	unsigned int sign = (p.bin & (0b00000001 << 31)) >> 31;
 	unsigned int biEx = (p.bin & (0b11111111 << 23)) >> 23;
-	unsigned int unBiEx = biEx - 127;
+	signed int unBiEx = biEx - 127;
 
 	float mantissaDen = 1.0f;
 	float currentPlace = 0.5f;
 	unsigned int mantissaBin = p.bin & 0b11111111111111111111111;
 	signed int iMantissaBin = 22; // If this isn't signed, the loop will never end
 	while (iMantissaBin >= 0) {
+		//printf("a");
 		if (((mantissaBin & (1 << iMantissaBin)) >> iMantissaBin) == 1) {
 			mantissaDen += currentPlace;
 		}
@@ -149,6 +152,7 @@ float unpack_float(char* bin) {
 	}
 	
 	for (unsigned int i = 0; i < unBiEx; i++) {
+		//printf("b");
 		expander *= factor;
 	}
 
