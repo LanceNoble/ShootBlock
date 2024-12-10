@@ -1,3 +1,6 @@
+# TODO
+- Detect intentional disconnections from server
+
 # ShootBlock
 - 2D PvP (2 - 4 Players) 
 - Goal: Kill other players
