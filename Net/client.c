@@ -136,7 +136,6 @@ void client_ping(struct Client* client, unsigned char* buf) {
 			link->val[i] = buf[i];
 		}
 
-		printf("%i\n", client->seq);
 		sendto(client->udp, buf, 7, 0, (struct sockaddr*)&client->addr, sizeof(struct sockaddr));
 		client->seq++;
 	}

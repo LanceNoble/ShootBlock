@@ -7,8 +7,9 @@
 #include <math.h>
 #include <stdio.h>
 
+#define PI 3.141592653589793238462643383279502884197169399375105820974944592307816406286208998628034825342117067
+
 int main() {
-	//struct Client* client = client_create("127.0.0.1", 3490);
 	struct Client* client = client_create("73.119.107.1", 3490);
 	SetConfigFlags(FLAG_VSYNC_HINT | FLAG_WINDOW_HIGHDPI);
 	InitWindow(1280, 800, "ShootBlock");
@@ -52,6 +53,7 @@ int main() {
 			yOff /= mag;
 
 			float rad = (float)atan(yOff / xOff);
+
 			float deg = (rad * 180) / PI;
 			if (xOff < 0) {
 				deg += 180;
@@ -64,6 +66,8 @@ int main() {
 			input[2] = (int)(deg / 45);
 			
 			pack_float(spd * GetFrameTime(), input + 3);
+			p1Pos.x += (float)cos(input[2] * 45 * PI / 180) * unpack_float(input + 3);
+			p1Pos.y -= (float)sin(input[2] * 45 * PI / 180) * unpack_float(input + 3);
 			client_ping(client, input);
 		}
 		

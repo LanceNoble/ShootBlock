@@ -1,5 +1,5 @@
 #define TIMEOUT_HOST 600
-#define TIMEOUT_PACKET 2
+#define TIMEOUT_PACKET 4
 
 union Response {
 	struct { 

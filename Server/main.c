@@ -41,13 +41,13 @@ int main() {
 			players[player].x += (float)cos(dir * PI / 180) * mag;
 			players[player].y -= (float)sin(dir * PI / 180) * mag;
 
-			printf("%i bytes from p%i seq %i: %f, %f\n", numBytes, player, seq, players[0].x, players[0].y);
+			//printf("%i bytes from p%i seq %i: %f, %f\n", numBytes, player, seq, players[0].x, players[0].y);
 			//printf("p2: %f, %f\n", players[1].x, players[1].y);
 
 			i += numBytes + 1;
 		}
 
-		if ((clock() - time) / CLOCKS_PER_SEC >= 1) {
+		if ((clock() - time) / CLOCKS_PER_SEC >= 2) {
 			pack_float(players[0].x, state + 2);
 			pack_float(players[0].y, state + 6);
 			pack_float(players[1].x, state + 10);
