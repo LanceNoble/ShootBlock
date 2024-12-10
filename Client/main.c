@@ -59,11 +59,24 @@ int main() {
 			client_ping(client, input);
 		}
 		
-		//unsigned char* state = NULL;
-		//client_sync(client, buf, &state);
-		//if (state != NULL) {
-		//	printf("%i\n", *state);
-		//}
+		unsigned char* state = client_sync(client, buf, &state);
+		if (state != NULL) {
+			Vector2 p1Pos;
+			Vector2 p2Pos;
+			Vector2 sz;
+			p1Pos.x = unpack_float(state + 1 + 2);
+			p1Pos.y = unpack_float(state + 1 + 6);
+			p2Pos.x = unpack_float(state + 1 + 10);
+			p2Pos.y = unpack_float(state + 1 + 14);
+			sz.x = 50;
+			sz.y = 50;
+			DrawRectangleV(p1Pos, sz, WHITE);
+			DrawRectangleV(p2Pos, sz, WHITE);
+			//printf("P1 Pos: %f, %f\n", unpack_float(state + 2), unpack_float(state + 6));
+			//printf("P2 Pos: %f, %f\n", unpack_float(state + 10), unpack_float(state + 14));
+
+			//printf("%i", *state);
+		}
 		//printf("looping\n");
 
 		/*

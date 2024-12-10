@@ -24,7 +24,7 @@ int main() {
 	players[1].y = 0;
 
 	char buf[1024];
-	char state[18];
+	unsigned char state[18];
 	while (!(GetAsyncKeyState(VK_END) & 0x01)) {
 		server_sync(server, buf);
 
@@ -40,18 +40,18 @@ int main() {
 			players[player].x += (float)cos(dir * PI / 180) * mag;
 			players[player].y -= (float)sin(dir * PI / 180) * mag;
 
-			printf("%i bytes from p%i seq %i: %f, %f\n", numBytes, player, seq, players[0].x, players[0].y);
+			//printf("%i bytes from p%i seq %i: %f, %f\n", numBytes, player, seq, players[0].x, players[0].y);
 			//printf("p2: %f, %f\n", players[1].x, players[1].y);
 
 			i += numBytes + 1;
 		}
 
 		//printf("l");
-		//pack_float(players[0].x, state + 2);
-		//pack_float(players[0].y, state + 6);
-		//pack_float(players[1].x, state + 10);
-		//pack_float(players[1].y, state + 14);
+		pack_float(players[0].x, state + 2);
+		pack_float(players[0].y, state + 6);
+		pack_float(players[1].x, state + 10);
+		pack_float(players[1].y, state + 14);
 		//
-		//server_ping(server, state);
+		server_ping(server, state);
 	}
 }

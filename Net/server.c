@@ -131,7 +131,12 @@ void server_sync(struct Server* server, unsigned char* buf) {
 			server->client2.time = 0;
 			server->client2.seq = 0;
 		}
+
+		printf("%i\n", numMsgs);
 	} while (*meta != (unsigned char)SOCKET_ERROR && numMsgs < 16);
+	if (numMsgs == 16) {
+		meta = i;
+	}
 	*meta = '\0';
 
 	union Response res;
@@ -170,6 +175,7 @@ void server_ping(struct Server* server, unsigned char* buf) {
 	}
 
 	server->seq++;
+	//printf("%i\n", server->seq);
 }
 
 void server_destroy(struct Server* server) {

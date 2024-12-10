@@ -136,13 +136,13 @@ void client_ping(struct Client* client, unsigned char* buf) {
 			link->val[i] = buf[i];
 		}
 
-		printf("%i\n", client->seq);
 		sendto(client->udp, buf, 7, 0, (struct sockaddr*)&client->addr, sizeof(struct sockaddr));
 		client->seq++;
 	}
 }
 
-void client_sync(struct Client* client, char* buf, char** state) {
+unsigned char* client_sync(struct Client* client, unsigned char* buf) {
+	unsigned char* state = NULL;
 	char* i = buf;
 	unsigned char* meta;
 	int numMsgs = 0;
@@ -176,9 +176,6 @@ void client_sync(struct Client* client, char* buf, char** state) {
 							if (del->seq < ack) {
 								client_ping(client, del->val);
 							}
-							else {
-								printf("%i\n", del->seq);
-							}
 							free(del);
 						}
 					}
@@ -187,8 +184,8 @@ void client_sync(struct Client* client, char* buf, char** state) {
 		}
 		else if (*meta != (unsigned char)SOCKET_ERROR) {
 			unsigned short seq = (meta[1] << 8) | meta[2];
-			if (seq > client->remSeq) {
-				*state = meta;
+			if (seq > client->remSeq || seq < client->remSeq && client->remSeq - seq > 0xffff / 2) {
+				state = meta;
 				client->remSeq = seq;
 				client->time = clock();
 				numMsgs++;
@@ -198,7 +195,6 @@ void client_sync(struct Client* client, char* buf, char** state) {
 			}
 		}
 	} while (*meta != (unsigned char)SOCKET_ERROR && numMsgs < 32);
-	*meta = '\0';
 	
 	if ((clock() - client->time) / CLOCKS_PER_SEC >= TIMEOUT_HOST) {
 		client_destroy(client);
@@ -211,6 +207,8 @@ void client_sync(struct Client* client, char* buf, char** state) {
 		client_ping(client, del->val);
 		free(del);
 	}
+	
+	return state;
 }
 
 static void input_destroy(struct Input* in) {

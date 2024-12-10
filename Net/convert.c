@@ -84,7 +84,7 @@ void pack_float(float den, unsigned char* bin) {
 
 	union Pack p;
  	p.bin = (sign << 31) | (biEx << 23) | mantissa << (23 - mantissaWidth);
-	int n = 0;
+	int n = 1;
 	if (*(char*)&n) {
 		bin[0] = p.bytes[3];
 		bin[1] = p.bytes[2];
@@ -100,14 +100,8 @@ void pack_float(float den, unsigned char* bin) {
 }
 
 float unpack_float(unsigned char* bin) {
-
-	// If this condition isn't checked, the function will return infinity
-	if (bin == 0) {
-		return 0;
-	}
-
 	union Pack p;
-	int n = 0;
+	int n = 1;
 	if (*(char*)&n) {
 		p.bytes[0] = bin[3];
 		p.bytes[1] = bin[2];
@@ -121,6 +115,11 @@ float unpack_float(unsigned char* bin) {
 		p.bytes[3] = bin[3];
 	}
 
+	// Stop function from returning inf
+	if (p.bin == 0) {
+		return 0;
+	}
+
 	unsigned int sign = (p.bin & (0b00000001 << 31)) >> 31;
 	unsigned int biEx = (p.bin & (0b11111111 << 23)) >> 23;
 	signed int unBiEx = biEx - 127;
@@ -130,7 +129,6 @@ float unpack_float(unsigned char* bin) {
 	unsigned int mantissaBin = p.bin & 0b11111111111111111111111;
 	signed int iMantissaBin = 22; // If this isn't signed, the loop will never end
 	while (iMantissaBin >= 0) {
-		//printf("a");
 		if (((mantissaBin & (1 << iMantissaBin)) >> iMantissaBin) == 1) {
 			mantissaDen += currentPlace;
 		}
@@ -152,7 +150,6 @@ float unpack_float(unsigned char* bin) {
 	}
 	
 	for (unsigned int i = 0; i < unBiEx; i++) {
-		//printf("b");
 		expander *= factor;
 	}
 
