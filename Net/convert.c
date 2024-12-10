@@ -149,7 +149,7 @@ float unpack_float(unsigned char* bin) {
 		unBiEx *= -1;
 	}
 	
-	for (unsigned int i = 0; i < unBiEx; i++) {
+	for (int i = 0; i < unBiEx; i++) {
 		expander *= factor;
 	}
 

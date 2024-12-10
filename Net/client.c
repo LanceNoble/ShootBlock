@@ -136,6 +136,7 @@ void client_ping(struct Client* client, unsigned char* buf) {
 			link->val[i] = buf[i];
 		}
 
+		printf("%i\n", client->seq);
 		sendto(client->udp, buf, 7, 0, (struct sockaddr*)&client->addr, sizeof(struct sockaddr));
 		client->seq++;
 	}
@@ -198,7 +199,7 @@ unsigned char* client_sync(struct Client* client, unsigned char* buf) {
 	
 	if ((clock() - client->time) / CLOCKS_PER_SEC >= TIMEOUT_HOST) {
 		client_destroy(client);
-		return;
+		return NULL;
 	}
 
 	if (client->firstIn != NULL && (clock() - client->firstIn->time) / CLOCKS_PER_SEC >= TIMEOUT_PACKET) {

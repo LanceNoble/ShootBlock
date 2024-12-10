@@ -8,13 +8,25 @@
 #include <stdio.h>
 
 int main() {
-	void* client = client_create("127.0.0.1", 3490);
+	//struct Client* client = client_create("127.0.0.1", 3490);
+	struct Client* client = client_create("73.119.107.1", 3490);
 	SetConfigFlags(FLAG_VSYNC_HINT | FLAG_WINDOW_HIGHDPI);
 	InitWindow(1280, 800, "ShootBlock");
 
 	char buf[1024];
 	char input[7];
 	int i = 0;
+
+	Vector2 p1Pos;
+	Vector2 p2Pos;
+	Vector2 sz;
+	p1Pos.x = 0;
+	p1Pos.y = 0;
+	p2Pos.x = 0;
+	p2Pos.y = 0;
+	sz.x = 50;
+	sz.y = 50;
+
 	while (!WindowShouldClose()) {
 		BeginDrawing();
 		ClearBackground(BLACK);
@@ -48,27 +60,23 @@ int main() {
 				deg += 360;
 			}
 
-			float spd = 250.0f;
+			float spd = 500.0f;
 			input[2] = (int)(deg / 45);
 			
 			pack_float(spd * GetFrameTime(), input + 3);
 			client_ping(client, input);
 		}
 		
-		unsigned char* state = client_sync(client, buf, &state);
+		unsigned char* state = client_sync(client, buf);
 		if (state != NULL) {
-			Vector2 p1Pos;
-			Vector2 p2Pos;
-			Vector2 sz;
 			p1Pos.x = unpack_float(state + 1 + 2);
 			p1Pos.y = unpack_float(state + 1 + 6);
 			p2Pos.x = unpack_float(state + 1 + 10);
 			p2Pos.y = unpack_float(state + 1 + 14);
-			sz.x = 50;
-			sz.y = 50;
-			DrawRectangleV(p1Pos, sz, WHITE);
-			DrawRectangleV(p2Pos, sz, WHITE);
 		}
+
+		DrawRectangleV(p1Pos, sz, WHITE);
+		DrawRectangleV(p2Pos, sz, WHITE);
 		EndDrawing();
 	}
 
