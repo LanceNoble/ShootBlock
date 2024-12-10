@@ -136,6 +136,7 @@ void client_ping(struct Client* client, unsigned char* buf) {
 			link->val[i] = buf[i];
 		}
 
+		//printf("%i", buf[0] << 8 | buf[1]);
 		sendto(client->udp, buf, 7, 0, (struct sockaddr*)&client->addr, sizeof(struct sockaddr));
 		client->seq++;
 	}
@@ -194,7 +195,7 @@ unsigned char* client_sync(struct Client* client, unsigned char* buf) {
 				i = meta;
 			}
 		}
-	} while (*meta != (unsigned char)SOCKET_ERROR && numMsgs < 32);
+	} while (*meta != (unsigned char)SOCKET_ERROR && numMsgs < 64);
 	
 	if ((clock() - client->time) / CLOCKS_PER_SEC >= TIMEOUT_HOST) {
 		client_destroy(client);

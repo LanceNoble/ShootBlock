@@ -131,8 +131,9 @@ void server_sync(struct Server* server, unsigned char* buf) {
 			server->client2.time = 0;
 			server->client2.seq = 0;
 		}
-	} while (*meta != (unsigned char)SOCKET_ERROR && numMsgs < 16);
-	if (numMsgs == 16) {
+	} while (*meta != (unsigned char)SOCKET_ERROR && numMsgs < 128);
+
+	if (numMsgs == 64) {
 		meta = i;
 	}
 	*meta = '\0';
@@ -149,6 +150,7 @@ void server_sync(struct Server* server, unsigned char* buf) {
 		}
 	}
 
+	// This throws an access violation reading location error sometimes
 	for (int i = 0; i < server->client2.numSeqs;) {
 		res.ack = server->client2.seqs[i];
 		res.bit = 0;
