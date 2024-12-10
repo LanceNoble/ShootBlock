@@ -52,10 +52,6 @@ int main() {
 			input[2] = (int)(deg / 45);
 			
 			pack_float(spd * GetFrameTime(), input + 3);
-			//unpack_float(input + 3);
-			//printf("%f\n", unpack_float(input + 3));
-			//printf("%i\n", i);
-			//i++;
 			client_ping(client, input);
 		}
 		
@@ -72,36 +68,7 @@ int main() {
 			sz.y = 50;
 			DrawRectangleV(p1Pos, sz, WHITE);
 			DrawRectangleV(p2Pos, sz, WHITE);
-			//printf("P1 Pos: %f, %f\n", unpack_float(state + 2), unpack_float(state + 6));
-			//printf("P2 Pos: %f, %f\n", unpack_float(state + 10), unpack_float(state + 14));
-
-			//printf("%i", *state);
 		}
-		//printf("looping\n");
-
-		/*
-		struct Message* potentialState = client_sync(client);
-		if (potentialState != NULL) {
-			state = potentialState;
-		}
-		if (state != NULL) {
-			//printf("unpacking");
-			Vector2 p1Pos;
-			p1Pos.x = unpack_float(state->buf + 2);
-			p1Pos.y = -unpack_float(state->buf + 6);
-			Vector2 p2Pos;
-			p2Pos.x = unpack_float(state->buf + 10);
-			p2Pos.y = -unpack_float(state->buf + 14);
-			Vector2 sz;
-			sz.x = 50;
-			sz.y = 50;
-			DrawRectangleV(p1Pos, sz, WHITE);
-			DrawRectangleV(p2Pos, sz, WHITE);
-			//printf("P1 Pos: %f, %f\n", unpack_float(p1x.pack), unpack_float(p1y.pack));
-			//printf("P2 Pos: %f, %f\n", unpack_float(p2x.pack), unpack_float(p2y.pack));
-		}
-		*/
-		//printf("looping");
 		EndDrawing();
 	}
 
