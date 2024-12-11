@@ -6,7 +6,7 @@
     - `client_sync` won't return until there's no more messages to receive
     - Its buffer can't hold all the states the server sent since the last `client_sync` call
   - Solutions:
-    1. Bigger buffer
+    1. Bigger buffer (current choice)
     2. Limit the number of messages `client_sync` can read in one call
     3. Lower the rate at which the server sends state
 
