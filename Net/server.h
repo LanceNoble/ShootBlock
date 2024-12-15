@@ -1,6 +1,6 @@
 #pragma once
 
-// Server houses up to 2 players
+// 2 Players Max
 struct Server* server_create(const unsigned short port);
 
 // Get punctual player messages

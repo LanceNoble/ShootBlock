@@ -1,32 +1,28 @@
 #include <stdio.h>
+#include <Windows.h>
 
 union Test {
 	unsigned long a;
 	unsigned char b[4];
 };
 
+static int WinMain(_In_ HINSTANCE hInst, _In_opt_ HINSTANCE hInstPrev, _In_ PSTR cmdline, _In_ int cmdshow) {
+	MessageBox(NULL, TEXT("Hello WinAPI Graphical User Interface"), TEXT("Welcome"), 0);
+	return 0;
+}
+
+static LRESULT WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
+	switch (uMsg) {
+
+	}
+}
+
 void main() {
-	printf("%f", 3.141592653589793238462643383279502884197169399375105820974944592307816406286208998628034825342117067);
-	union Test a;
-	a.a = 255;
-	//a.b[0] = 255;
-	//a.b[1] = 0;
-	//a.b[2] = 0;
-	//a.b[3] = 0;
-	a.a = 1;//(64 << 24) | (63 << 16) | (62 << 8) | (61);
+	HINSTANCE hInst;
+	ZeroMemory(&hInst, sizeof(HINSTANCE));
+	WinMain(&hInst, NULL, "", 0);
 
-	union Test b;
-	b.b[0] = a.b[0];
-	b.b[1] = a.b[1];
-	b.b[2] = a.b[2];
-	b.b[3] = a.b[3];
-
-	b.b[0] = 0			 ;
-		b.b[1] = 0		 ;
-		b.b[2] = 0		 ;
-		b.b[3] = 1		 ;
-
-
-
-
+	//WNDCLASS wc;
+	//wc.lpfnWndProc = WindowProc;
+	//wc.lpfnWndProc = WindowProc;
 }

@@ -24,8 +24,12 @@ void main() {
 	players[1].x = 0;
 	players[1].y = 0;
 
-	char buf[4096];
-	unsigned char state[18];
+	unsigned char* buf = malloc(sizeof(unsigned char) * 65536);
+	if (buf == NULL) {
+		return;
+	}
+
+	unsigned char state[32];
 	while (!(GetAsyncKeyState(VK_END) & 0x01)) {
 		server_sync(server, buf);
 
@@ -35,12 +39,13 @@ void main() {
 			int numBytes = *i & 0b01111111;
 			int seq = (i[1] << 8) | i[2];
 
-			printf("%i\n", i[3]);
-			int dir = (int)i[3] * 45;
+			//printf("%i\n", i[3]);
+			//int dir = (int)i[3] * 45;
 			float mag = unpack_float(i + 4);
+			//printf("%f\n", mag);
 
-			players[player].x += (float)cos(dir * PI / 180.0f) * mag;
-			players[player].y -= (float)sin(dir * PI / 180.0f) * mag;
+			players[player].x += (float)cos(i[3] * 45 * PI / 180.0f) * mag;
+			players[player].y -= (float)sin(i[3] * 45 * PI / 180.0f) * mag;
 
 			//printf("%i\n", dir);
 			//printf("%i bytes from p%i seq %i: %f, %f\n", numBytes, player, seq, players[0].x, players[0].y);
@@ -49,7 +54,7 @@ void main() {
 			i += numBytes + 1;
 		}
 
-		if ((clock() - time) / CLOCKS_PER_SEC >= 0) {
+		if ((clock() - time) / CLOCKS_PER_SEC >= 2) {
 			pack_float(players[0].x, state + 2);
 			pack_float(players[0].y, state + 6);
 			pack_float(players[1].x, state + 10);
@@ -59,4 +64,7 @@ void main() {
 			time = clock();
 		}
 	}
+
+	server_destroy(server);
+	server = NULL;
 }

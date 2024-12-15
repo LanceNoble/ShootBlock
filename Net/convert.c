@@ -2,7 +2,7 @@
 
 union Pack {
 	unsigned long bin;
-	char bytes[4];
+	unsigned char bytes[4];
 };
 
 void pack_float(float den, unsigned char* bin) {
@@ -64,7 +64,6 @@ void pack_float(float den, unsigned char* bin) {
 		normalizer--;
 	}
 		
-
 	// Will need this later to pad the mantissa bits
 	unsigned int mantissaWidth = normalizer;
 
@@ -117,7 +116,7 @@ float unpack_float(unsigned char* bin) {
 
 	// Stop function from returning inf
 	if (p.bin == 0) {
-		return 0;
+		return 0.0f;
 	}
 
 	unsigned int sign = (p.bin & (0b00000001 << 31)) >> 31;

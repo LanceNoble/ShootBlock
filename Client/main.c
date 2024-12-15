@@ -4,16 +4,24 @@
 #include "comms.h"
 #include "client.h"
 
+#include "state.h"
+#include "start.h"
+
 #include <math.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 void main() {
-	struct Client* client = client_create("73.119.107.1", 3490);
+	//start_init();
+
+	//state_change(start_update, start_draw);
+
+	struct Client* client = client_create();
+	unsigned char* recvBuf = malloc(sizeof(unsigned char) * 0xffff);
+	unsigned char sendBuf[7];
+	
 	SetConfigFlags(FLAG_VSYNC_HINT | FLAG_WINDOW_HIGHDPI);
 	InitWindow(1280, 800, "ShootBlock");
-
-	unsigned char buf[4096];
-	unsigned char input[7];
 
 	Vector2 p1Pos;
 	Vector2 p2Pos;
@@ -31,8 +39,11 @@ void main() {
 		BeginDrawing();
 		ClearBackground(BLACK);
 
+		//state_invoke();
+		/*
 		float x = 0;
 		float y = 0;
+
 		if (IsKeyDown(KEY_W)) {
 			y += 1;
 		}
@@ -61,34 +72,31 @@ void main() {
 				deg += 360;
 			}
 
-			input[2] = (unsigned char)(deg / 45);
-			//printf("%i\n", input[2]);
-			pack_float(500.0f * GetFrameTime(), input + 3);
+			sendBuf[2] = (unsigned char)(deg / 45);
+			pack_float(500.0f * GetFrameTime(), sendBuf + 3);
 			
-			p1Pos.x += (float)cos(input[2] * 45 * PI / 180.0f) * unpack_float(input + 3);
-			p1Pos.y -= (float)sin(input[2] * 45 * PI / 180.0f) * unpack_float(input + 3);
+			p1Pos.x += (float)cos(sendBuf[2] * 45 * PI / 180.0f) * unpack_float(sendBuf + 3);
+			p1Pos.y -= (float)sin(sendBuf[2] * 45 * PI / 180.0f) * unpack_float(sendBuf + 3);
 			
-			client_ping(client, input);
+			client_ping(client, sendBuf);
 		}
 		
-		unsigned char* state = client_sync(client, buf);
+		unsigned char* state = client_sync(client, recvBuf);
 		if (state != NULL) {
-			printf("Prediction: %f, %f\n", p1Pos.x, p1Pos.y);
-
 			p1Pos.x = unpack_float(state + 1 + 2);
 			p1Pos.y = unpack_float(state + 1 + 6);
-
-			printf("Actual: %f, %f\n\n", p1Pos.x, p1Pos.y);
-
 			p2Pos.x = unpack_float(state + 1 + 10);
 			p2Pos.y = unpack_float(state + 1 + 14);
 		}
 
 		DrawRectangleV(p1Pos, sz, WHITE);
 		DrawRectangleV(p2Pos, sz, WHITE);
+		*/
+
 		EndDrawing();
 	}
 
+	/*
 	if (client == NULL) {
 		printf("No feedback from server. Closing...\n");
 	}
@@ -96,4 +104,5 @@ void main() {
 		printf("You Quit.\n");
 		client_destroy(client);
 	}
+	*/
 }
